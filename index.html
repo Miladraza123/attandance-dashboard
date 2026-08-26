@@ -351,7 +351,12 @@ async function loadHolidays() {
   } catch (e) { showError(e.message); }
 }
 async function removeHoliday(id) {
-  try { await sbDelete('company_holidays', id); loadHolidays(); } catch (e) { showError(e.message); }
+  try {
+    const h = holidaysCache.find(x => x.id === id);
+    await sbDelete('company_holidays', id);
+    if (h) await sbRpc('compute_daily_attendance', { target_date: h.holiday_date });
+    loadHolidays();
+  } catch (e) { showError(e.message); }
 }
 document.getElementById('btnAddHoliday').addEventListener('click', async () => {
   const holiday_date = document.getElementById('holDate').value;
@@ -360,6 +365,7 @@ document.getElementById('btnAddHoliday').addEventListener('click', async () => {
   try {
     clearError();
     await sbPost('company_holidays', { holiday_date, description });
+    await sbRpc('compute_daily_attendance', { target_date: holiday_date });
     document.getElementById('holDate').value = '';
     document.getElementById('holDesc').value = '';
     loadHolidays();
@@ -383,7 +389,12 @@ async function loadLeaves() {
   } catch (e) { showError(e.message); }
 }
 async function removeLeave(id) {
-  try { await sbDelete('employee_leaves', id); loadLeaves(); } catch (e) { showError(e.message); }
+  try {
+    const l = leavesCache.find(x => x.id === id);
+    await sbDelete('employee_leaves', id);
+    if (l) await sbRpc('compute_daily_attendance', { target_date: l.leave_date });
+    loadLeaves();
+  } catch (e) { showError(e.message); }
 }
 document.getElementById('btnAddLeave').addEventListener('click', async () => {
   const employee_id = document.getElementById('leaveEmp').value;
@@ -406,6 +417,10 @@ document.getElementById('btnAddLeave').addEventListener('click', async () => {
   try {
     clearError();
     await sbPost('employee_leaves', rows);
+    // Har din ko turant dobara calculate karein taake "Absent" turant "Leave" ban jaye
+    for (const row of rows) {
+      await sbRpc('compute_daily_attendance', { target_date: row.leave_date });
+    }
     document.getElementById('leaveDateFrom').value = '';
     document.getElementById('leaveDateTo').value = '';
     document.getElementById('leaveReason').value = '';
