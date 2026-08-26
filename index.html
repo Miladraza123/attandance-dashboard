@@ -265,8 +265,12 @@ async function sbDelete(table, id) {
 }
 async function sbRpc(fn, args) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers, body: JSON.stringify(args) });
-  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
-  return res.json();
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || res.statusText);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 function showError(msg) {
   const bar = document.getElementById('errorBar');
