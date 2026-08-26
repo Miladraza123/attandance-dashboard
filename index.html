@@ -121,7 +121,7 @@
             <th style="text-align:center;">Absent</th><th style="text-align:center;">Paid Lv</th>
             <th style="text-align:center;">Unpaid Lv</th><th style="text-align:center;">Warn 1-Punch</th>
             <th style="text-align:right;">Overtime</th><th style="text-align:right;">Deduction</th>
-            <th style="text-align:right;">Net</th><th style="text-align:right;">Final Salary</th>
+            <th style="text-align:right;">Net</th><th style="text-align:right;">Final Salary</th><th class="no-print" style="text-align:center;">Detail</th>
           </tr>
         </thead>
         <tbody id="reportBody"></tbody>
@@ -429,10 +429,44 @@ document.getElementById('btnAddLeave').addEventListener('click', async () => {
 });
 
 let selectedEmpIds = new Set();
+let seenEmpIds = new Set();
+async function toggleBreakdown(empId, start, end) {
+  const row = document.getElementById(`breakdown-${empId}`);
+  const content = document.getElementById(`breakdown-content-${empId}`);
+  if (row.style.display === 'table-row') {
+    row.style.display = 'none';
+    return;
+  }
+  row.style.display = 'table-row';
+  content.innerHTML = '<span class="muted" style="font-size:12.5px;">Loading...</span>';
+  try {
+    const data = await sbRpc('compute_employee_breakdown', { emp_id: empId, start_date: start, end_date: end });
+    if (!data || data.length === 0) {
+      content.innerHTML = '<span class="muted" style="font-size:12.5px;">Is range mein koi late/absent/overtime/leave nahi mila — sab kuch normal present raha.</span>';
+      return;
+    }
+    content.innerHTML = `<div style="font-size:12.5px; font-weight:700; color:#78716a; margin-bottom:6px;">Din-ba-din wajah:</div>` +
+      data.map(d => `
+        <div style="display:flex; align-items:center; gap:10px; padding:5px 0; border-top:1px solid #e2ddd2;">
+          <span class="mono" style="width:95px; color:#78716a;">${d.attendance_date}</span>
+          <span style="flex:1;">${d.note}</span>
+          <span class="mono" style="font-weight:700; width:90px; text-align:right; color:${Number(d.amount) > 0 ? '#2f6844' : Number(d.amount) < 0 ? '#a13a3a' : '#a89f8f'};">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</span>
+        </div>`).join('');
+  } catch (e) {
+    content.innerHTML = `<span style="color:#a13a3a; font-size:12.5px;">Error: ${e.message}</span>`;
+  }
+}
+
 function renderEmpFilter() {
   const list = document.getElementById('empFilterList');
-  // Naye employees by default selected hon
-  employeesCache.forEach(e => { if (!selectedEmpIds.has(e.id)) selectedEmpIds.add(e.id); });
+  // Sirf pehli baar dekhe gaye (naye) employees ko default select karein —
+  // pehle se dekhe hue employees ki selection (chahe ON ho ya OFF) untouched rahegi
+  employeesCache.forEach(e => {
+    if (!seenEmpIds.has(e.id)) {
+      selectedEmpIds.add(e.id);
+      seenEmpIds.add(e.id);
+    }
+  });
   list.innerHTML = employeesCache.map(e => `
     <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; background:#efe9dc; padding:5px 10px; border-radius:6px; cursor:pointer;">
       <input type="checkbox" data-emp-id="${e.id}" ${selectedEmpIds.has(e.id) ? 'checked' : ''} onchange="toggleEmpFilter('${e.id}', this.checked)">
@@ -488,6 +522,10 @@ function renderReport(start, end) {
       <td class="mono" style="text-align:right; color:#a13a3a; font-weight:600;">-${fmt(Number(r.late_deduction) + Number(r.absent_deduction))}</td>
       <td class="mono" style="text-align:right; font-weight:700; color:${Number(r.net_adjustment) >= 0 ? '#2f6844' : '#a13a3a'};">${Number(r.net_adjustment) >= 0 ? '+' : ''}${fmt(r.net_adjustment)}</td>
       <td class="mono" style="text-align:right; font-weight:700;">Rs. ${fmt(r.final_salary)}</td>
+      <td class="no-print" style="text-align:center;"><button class="btn btn-light" style="height:26px; padding:3px 8px; font-size:11px;" onclick="toggleBreakdown('${r.employee_id}', '${start}', '${end}')">🔍</button></td>
+    </tr>
+    <tr id="breakdown-${r.employee_id}" style="display:none;">
+      <td colspan="14" style="padding:0;"><div id="breakdown-content-${r.employee_id}" style="padding:12px 16px; background:#faf8f3;"></div></td>
     </tr>`).join('');
 
   const totals = filtered.reduce((acc, r) => {
