@@ -205,8 +205,27 @@
 
   <!-- POLICY TAB -->
   <div id="tab-policy" class="tab-content">
-    <h2>Final Policy (Locked)</h2>
-    <div class="card" style="max-width:520px; padding:4px;" id="policyList"></div>
+    <h2 style="margin-bottom:4px;">Attendance Rules</h2>
+    <div class="muted" style="font-size:13px; margin-bottom:20px;">Yahan se rules edit karein — direct database mein save hote hain, koi SQL editor nahi chahiye.</div>
+    <div class="card no-print" style="max-width:560px; padding:16px; display:flex; flex-direction:column; gap:14px;">
+      <div><label>Office Start Time</label><input type="time" id="rOfficeStart"></div>
+      <div><label>Office End Time</label><input type="time" id="rOfficeEnd"></div>
+      <div><label>Late Grace Period (minutes)</label><input type="number" id="rGrace"></div>
+      <div><label>Free Late Days per Month</label><input type="number" id="rFreeLate"></div>
+      <div><label>Free Absent Days per Month</label><input type="number" id="rFreeAbsent"></div>
+      <div><label>Overtime Starts After (minutes past end time)</label><input type="number" id="rOvertimeAfter"></div>
+      <div><label>Total Working Minutes / Month</label><input type="number" id="rTotalMinutes"></div>
+      <div><label>Full Day Minutes (absent deduction ke liye)</label><input type="number" id="rFullDayMinutes"></div>
+      <div>
+        <label>Weekly Off Day</label>
+        <select id="rWeeklyOff">
+          <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+          <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+        </select>
+      </div>
+      <button class="btn btn-dark" id="btnSaveRules" style="align-self:flex-start;">💾 Save Rules</button>
+      <div id="rulesSavedMsg" style="font-size:12.5px; color:#2f6844; display:none;">✓ Saved — nayi report se ye rules apply hongi.</div>
+    </div>
   </div>
 
 </main>
@@ -569,24 +588,43 @@ document.getElementById('btnExportLog').addEventListener('click', () => {
   a.click();
 });
 
-// ---- Policy ----
-const policy = [
-  ['Office Timing', '11:00 AM – 08:00 PM'],
-  ['Weekly Off', 'Sunday'],
-  ['Late Grace Period', '30 minutes'],
-  ['Free Late / Month', 'Pehle 3 late maaf'],
-  ['Late Deduction', '4th late se, minute-wise'],
-  ['Free Absent / Month', 'Pehla absent maaf'],
-  ['Absent Deduction', '2nd absent se, poore din ki'],
-  ['Overtime Starts', 'End time ke 30 min baad'],
-  ['Overtime Rule', 'Jis din late ho, us din overtime nahi'],
-  ['Overtime Pay', 'Minute-wise, salary rate ke barabar'],
-  ['Total Working Minutes/Month', '14,040'],
-];
-document.getElementById('policyList').innerHTML = policy.map(([k, v], i) => `
-  <div style="display:flex; justify-content:space-between; padding:10px 16px; ${i > 0 ? 'border-top:1px solid #efe9dc;' : ''} font-size:13px;">
-    <span class="muted">${k}</span><span style="font-weight:600;">${v}</span>
-  </div>`).join('');
+// ---- Attendance Rules (editable) ----
+async function loadRules() {
+  try {
+    const rows = await sbGet('attendance_rules?id=eq.1');
+    const r = rows[0];
+    if (!r) return;
+    document.getElementById('rOfficeStart').value = r.office_start_time.slice(0, 5);
+    document.getElementById('rOfficeEnd').value = r.office_end_time.slice(0, 5);
+    document.getElementById('rGrace').value = r.late_grace_minutes;
+    document.getElementById('rFreeLate').value = r.free_late_count;
+    document.getElementById('rFreeAbsent').value = r.free_absent_count;
+    document.getElementById('rOvertimeAfter').value = r.overtime_after_minutes;
+    document.getElementById('rTotalMinutes').value = r.total_working_minutes_month;
+    document.getElementById('rFullDayMinutes').value = r.full_day_minutes;
+    document.getElementById('rWeeklyOff').value = r.weekly_off_day;
+  } catch (e) { showError(e.message); }
+}
+document.getElementById('btnSaveRules').addEventListener('click', async () => {
+  const body = {
+    office_start_time: document.getElementById('rOfficeStart').value,
+    office_end_time: document.getElementById('rOfficeEnd').value,
+    late_grace_minutes: Number(document.getElementById('rGrace').value),
+    free_late_count: Number(document.getElementById('rFreeLate').value),
+    free_absent_count: Number(document.getElementById('rFreeAbsent').value),
+    overtime_after_minutes: Number(document.getElementById('rOvertimeAfter').value),
+    total_working_minutes_month: Number(document.getElementById('rTotalMinutes').value),
+    full_day_minutes: Number(document.getElementById('rFullDayMinutes').value),
+    weekly_off_day: Number(document.getElementById('rWeeklyOff').value),
+  };
+  try {
+    clearError();
+    await sbPatch('attendance_rules', 1, body);
+    const msg = document.getElementById('rulesSavedMsg');
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+  } catch (e) { showError(e.message); }
+});
 
 // ---- Init ----
 function todayISO() {
@@ -611,6 +649,7 @@ loadWaivers();
 loadReport();
 renderReviewBox();
 loadLog();
+loadRules();
 </script>
 
 </body>
