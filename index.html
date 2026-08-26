@@ -100,6 +100,16 @@
       <button class="btn btn-light" id="btnExportCSV">⬇ Export CSV</button>
       <button class="btn btn-light" id="btnPrint">🖨 Print</button>
     </div>
+    <div class="no-print card" style="padding:12px 16px; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <span style="font-size:12.5px; font-weight:700; color:#78716a;">Employees (report mein sirf select kiye hue dikhenge)</span>
+        <span>
+          <button class="btn btn-light" style="height:28px; padding:4px 10px; font-size:11.5px;" id="btnSelectAllEmp">Sab</button>
+          <button class="btn btn-light" style="height:28px; padding:4px 10px; font-size:11.5px;" id="btnSelectNoneEmp">Koi Nahi</button>
+        </span>
+      </div>
+      <div id="empFilterList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
     <div class="muted" id="reportMeta" style="font-size:13px; margin-bottom:12px;"></div>
     <div class="no-print" id="reviewBox" style="margin-bottom:16px;"></div>
     <div class="card" style="overflow:auto;">
@@ -302,6 +312,8 @@ async function loadEmployees() {
 
     const waiverSel = document.getElementById('waiverEmp');
     waiverSel.innerHTML = '<option value="">Select</option>' + employeesCache.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+
+    renderEmpFilter();
   } catch (e) { showError(e.message); }
 }
 async function removeEmployee(id) {
@@ -401,6 +413,32 @@ document.getElementById('btnAddLeave').addEventListener('click', async () => {
   } catch (e) { showError(e.message); }
 });
 
+let selectedEmpIds = new Set();
+function renderEmpFilter() {
+  const list = document.getElementById('empFilterList');
+  // Naye employees by default selected hon
+  employeesCache.forEach(e => { if (!selectedEmpIds.has(e.id)) selectedEmpIds.add(e.id); });
+  list.innerHTML = employeesCache.map(e => `
+    <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; background:#efe9dc; padding:5px 10px; border-radius:6px; cursor:pointer;">
+      <input type="checkbox" data-emp-id="${e.id}" ${selectedEmpIds.has(e.id) ? 'checked' : ''} onchange="toggleEmpFilter('${e.id}', this.checked)">
+      ${e.full_name}
+    </label>`).join('');
+}
+function toggleEmpFilter(id, checked) {
+  if (checked) selectedEmpIds.add(id); else selectedEmpIds.delete(id);
+  renderReport(document.getElementById('startDate').value, document.getElementById('endDate').value);
+}
+document.getElementById('btnSelectAllEmp').addEventListener('click', () => {
+  employeesCache.forEach(e => selectedEmpIds.add(e.id));
+  renderEmpFilter();
+  renderReport(document.getElementById('startDate').value, document.getElementById('endDate').value);
+});
+document.getElementById('btnSelectNoneEmp').addEventListener('click', () => {
+  selectedEmpIds.clear();
+  renderEmpFilter();
+  renderReport(document.getElementById('startDate').value, document.getElementById('endDate').value);
+});
+
 // ---- Report ----
 function fmt(n) { return Number(n || 0).toLocaleString(); }
 
@@ -416,10 +454,11 @@ async function loadReport() {
   document.getElementById('btnGetReport').textContent = '↻ Get Report';
 }
 
-function renderReport(startDate, endDate) {
-  document.getElementById('reportMeta').textContent = `${startDate} se ${endDate} tak — ${reportCache.length} employees`;
+function renderReport(start, end) {
+  const filtered = reportCache.filter(r => selectedEmpIds.has(r.employee_id));
+  document.getElementById('reportMeta').textContent = `${start} se ${end} tak — ${filtered.length} employees (${reportCache.length} mein se select kiye)`;
   const body = document.getElementById('reportBody');
-  body.innerHTML = reportCache.map(r => `
+  body.innerHTML = filtered.map(r => `
     <tr>
       <td style="font-weight:600;">${r.employee_name}</td>
       <td class="muted">${r.department || ''}</td>
@@ -436,7 +475,7 @@ function renderReport(startDate, endDate) {
       <td class="mono" style="text-align:right; font-weight:700;">Rs. ${fmt(r.final_salary)}</td>
     </tr>`).join('');
 
-  const totals = reportCache.reduce((acc, r) => {
+  const totals = filtered.reduce((acc, r) => {
     acc.salary += Number(r.monthly_salary) || 0;
     acc.overtime += Number(r.overtime_pay) || 0;
     acc.deduction += (Number(r.late_deduction) || 0) + (Number(r.absent_deduction) || 0);
@@ -502,7 +541,7 @@ document.getElementById('btnGetReport').addEventListener('click', loadReport);
 
 document.getElementById('btnExportCSV').addEventListener('click', () => {
   const rows = [['Employee','Department','Salary','Present','Late','Absent','Paid Leave','Unpaid Leave','Single Punch','Overtime','Late Ded.','Absent Ded.','Net','Final Salary']];
-  reportCache.forEach(r => rows.push([r.employee_name, r.department, r.monthly_salary, r.present_days, r.total_late_days, r.total_absent_days, r.paid_leave_days, r.unpaid_leave_days, r.single_punch_days, r.overtime_pay, r.late_deduction, r.absent_deduction, r.net_adjustment, r.final_salary]));
+  reportCache.filter(r => selectedEmpIds.has(r.employee_id)).forEach(r => rows.push([r.employee_name, r.department, r.monthly_salary, r.present_days, r.total_late_days, r.total_absent_days, r.paid_leave_days, r.unpaid_leave_days, r.single_punch_days, r.overtime_pay, r.late_deduction, r.absent_deduction, r.net_adjustment, r.final_salary]));
   const csv = rows.map(r => r.join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
