@@ -27,7 +27,7 @@
   th, td { padding: 9px 12px; text-align: left; }
   thead tr { background: #efe9dc; }
   tbody tr { border-top: 1px solid #efe9dc; }
-  tfoot tr { border-top: 2px solid #2a2622; background: #efe9dc; font-weight: 700; }
+  #totalsBody tr { border-top: 2px solid #2a2622; background: #efe9dc; font-weight: 700; }
   .list-row { display: flex; align-items: center; padding: 12px 16px; border-top: 1px solid #efe9dc; font-size: 13px; gap: 10px; }
   .list-row:first-child { border-top: none; }
   .del-btn { background: none; border: none; cursor: pointer; color: #a13a3a; font-size: 16px; }
@@ -51,7 +51,7 @@
     th { font-weight: 700 !important; color: #000 !important; }
     thead tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     tbody.emp-group tr:first-child { background: #fff; }
-    tfoot tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #totalsBody tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .muted { color: #333 !important; }
     #reportMeta { display: none; }
     /* Har employee ka poora block (summary row + breakdown) kabhi bhi
@@ -154,7 +154,7 @@
           </tr>
         </thead>
         <tbody id="reportBody"></tbody>
-        <tfoot><tr id="reportTotals"></tr></tfoot>
+        <tbody id="totalsBody"><tr id="reportTotals"></tr></tbody>
       </table>
     </div>
   </div>
@@ -200,8 +200,11 @@
       <div style="flex:1; min-width:140px;"><label>Full Name</label><input id="empName"></div>
       <div><label>Department</label><input id="empDept"></div>
       <div><label>Salary</label><input type="number" id="empSalary"></div>
+      <div><label>Custom Start (optional)</label><input type="time" id="empCustomStart"></div>
+      <div><label>Custom End (optional)</label><input type="time" id="empCustomEnd"></div>
       <button class="btn btn-dark" id="btnAddEmp">+ Add</button>
     </div>
+    <div class="muted" style="font-size:12px; margin-bottom:16px;">Custom timing khali chhod dein to employee default office timing (Policy tab) follow karega. Note: raat ko cross-day shift (jaise 8 PM se subah 5 AM) abhi support nahi hoti — sirf same-day alag timing (jaise 9 AM–6 PM) set kar sakte hain.</div>
     <div class="card" id="employeesList"></div>
   </div>
 
@@ -330,13 +333,25 @@ async function loadEmployees() {
   try {
     employeesCache = await sbGet('employees?active=eq.true&order=full_name.asc');
     const list = document.getElementById('employeesList');
-    list.innerHTML = employeesCache.map(e => `
-      <div class="list-row">
-        <div class="mono muted" style="width:60px;">#${e.machine_user_id}</div>
-        <div style="flex:1; font-weight:600;">${e.full_name}</div>
-        <div class="muted" style="width:120px;">${e.department || ''}</div>
-        <div class="mono muted" style="width:110px;">Rs. ${Number(e.monthly_salary).toLocaleString()}</div>
-        <button class="del-btn no-print" onclick="removeEmployee('${e.id}')">🗑</button>
+    list.innerHTML = employeesCache.map((e, i) => `
+      <div style="${i > 0 ? 'border-top:1px solid #efe9dc;' : ''}">
+        <div class="list-row" style="border-top:none;">
+          <div class="mono muted" style="width:60px;">#${e.machine_user_id}</div>
+          <div style="flex:1; font-weight:600;">${e.full_name}</div>
+          <div class="muted" style="width:120px;">${e.department || ''}</div>
+          <div class="mono muted" style="width:110px;">Rs. ${Number(e.monthly_salary).toLocaleString()}</div>
+          ${e.custom_start_time ? `<div class="mono" style="width:120px; color:#a6650a; font-size:11.5px;">⏰ ${e.custom_start_time.slice(0,5)}–${(e.custom_end_time||'').slice(0,5)}</div>` : `<div style="width:120px;"></div>`}
+          <button class="btn btn-light no-print" style="height:26px; padding:3px 8px; font-size:11px;" onclick="toggleTimingEdit('${e.id}')">⏰ Timing</button>
+          <button class="del-btn no-print" onclick="removeEmployee('${e.id}')">🗑</button>
+        </div>
+        <div id="timing-edit-${e.id}" class="no-print" style="display:none; padding:10px 16px; background:#faf8f3;">
+          <div class="row-flex" style="align-items:flex-end;">
+            <div><label>Custom Start</label><input type="time" id="timingStart-${e.id}" value="${e.custom_start_time ? e.custom_start_time.slice(0,5) : ''}"></div>
+            <div><label>Custom End</label><input type="time" id="timingEnd-${e.id}" value="${e.custom_end_time ? e.custom_end_time.slice(0,5) : ''}"></div>
+            <button class="btn btn-dark" style="height:34px;" onclick="saveTiming('${e.id}')">Save</button>
+            <button class="btn btn-light" style="height:34px;" onclick="clearTiming('${e.id}')">Clear (Default pe wapas)</button>
+          </div>
+        </div>
       </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi employee nahi.</div>';
 
     const sel = document.getElementById('leaveEmp');
@@ -354,19 +369,43 @@ async function loadEmployees() {
 async function removeEmployee(id) {
   try { await sbPatch('employees', id, { active: false }); loadEmployees(); } catch (e) { showError(e.message); }
 }
+function toggleTimingEdit(id) {
+  const el = document.getElementById(`timing-edit-${id}`);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+async function saveTiming(id) {
+  const start = document.getElementById(`timingStart-${id}`).value;
+  const end = document.getElementById(`timingEnd-${id}`).value;
+  try {
+    clearError();
+    await sbPatch('employees', id, { custom_start_time: start || null, custom_end_time: end || null });
+    loadEmployees();
+  } catch (e) { showError(e.message); }
+}
+async function clearTiming(id) {
+  try {
+    clearError();
+    await sbPatch('employees', id, { custom_start_time: null, custom_end_time: null });
+    loadEmployees();
+  } catch (e) { showError(e.message); }
+}
 document.getElementById('btnAddEmp').addEventListener('click', async () => {
   const machine_user_id = document.getElementById('empMachineId').value.trim();
   const full_name = document.getElementById('empName').value.trim();
   const department = document.getElementById('empDept').value.trim();
   const monthly_salary = Number(document.getElementById('empSalary').value) || 0;
+  const custom_start_time = document.getElementById('empCustomStart').value || null;
+  const custom_end_time = document.getElementById('empCustomEnd').value || null;
   if (!machine_user_id || !full_name) return;
   try {
     clearError();
-    await sbPost('employees', { machine_user_id, full_name, department, monthly_salary });
+    await sbPost('employees', { machine_user_id, full_name, department, monthly_salary, custom_start_time, custom_end_time });
     document.getElementById('empMachineId').value = '';
     document.getElementById('empName').value = '';
     document.getElementById('empDept').value = '';
     document.getElementById('empSalary').value = '';
+    document.getElementById('empCustomStart').value = '';
+    document.getElementById('empCustomEnd').value = '';
     loadEmployees();
   } catch (e) { showError(e.message); }
 });
@@ -632,7 +671,7 @@ function renderReport(start, end) {
 
   const table = document.getElementById('reportTable');
   table.querySelectorAll('tbody.emp-group').forEach(tb => tb.remove());
-  const tfoot = table.querySelector('tfoot');
+  const totalsBody = document.getElementById('totalsBody');
 
   filtered.forEach(r => {
     const tbody = document.createElement('tbody');
@@ -660,7 +699,7 @@ function renderReport(start, end) {
       <tr id="breakdown-${r.employee_id}" style="display:none;">
         <td colspan="14" style="padding:0;"><div id="breakdown-content-${r.employee_id}" style="padding:12px 16px; background:#faf8f3;"></div></td>
       </tr>`;
-    table.insertBefore(tbody, tfoot);
+    table.insertBefore(tbody, totalsBody);
   });
 
   const totals = filtered.reduce((acc, r) => {
