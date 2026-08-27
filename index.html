@@ -204,7 +204,7 @@
       <div><label>Custom End (optional)</label><input type="time" id="empCustomEnd"></div>
       <button class="btn btn-dark" id="btnAddEmp">+ Add</button>
     </div>
-    <div class="muted" style="font-size:12px; margin-bottom:16px;">Custom timing khali chhod dein to employee default office timing (Policy tab) follow karega. Note: raat ko cross-day shift (jaise 8 PM se subah 5 AM) abhi support nahi hoti — sirf same-day alag timing (jaise 9 AM–6 PM) set kar sakte hain.</div>
+    <div class="muted" style="font-size:12px; margin-bottom:16px;">Custom timing khali chhod dein to employee default office timing (Policy tab) follow karega. Same-day (jaise 9 AM–6 PM) aur raat ki cross-day shift (jaise 8 PM se subah 7 AM) — dono support hoti hain, system khud pehchan leta hai.</div>
     <div class="card" id="employeesList"></div>
   </div>
 
@@ -351,6 +351,11 @@ async function loadEmployees() {
             <button class="btn btn-dark" style="height:34px;" onclick="saveTiming('${e.id}')">Save</button>
             <button class="btn btn-light" style="height:34px;" onclick="clearTiming('${e.id}')">Clear (Default pe wapas)</button>
           </div>
+          <label style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; cursor:pointer;">
+            <input type="checkbox" id="timingRecompute-${e.id}">
+            Purani dates bhi is nayi timing se dobara calculate karo (agar purana data bhi is timing se theek karna ho)
+          </label>
+          <div id="timingRecomputeStatus-${e.id}" style="font-size:12px; color:#78716a; margin-top:4px;"></div>
         </div>
       </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi employee nahi.</div>';
 
@@ -376,10 +381,24 @@ function toggleTimingEdit(id) {
 async function saveTiming(id) {
   const start = document.getElementById(`timingStart-${id}`).value;
   const end = document.getElementById(`timingEnd-${id}`).value;
+  const shouldRecompute = document.getElementById(`timingRecompute-${id}`).checked;
+  const statusEl = document.getElementById(`timingRecomputeStatus-${id}`);
   try {
     clearError();
     await sbPatch('employees', id, { custom_start_time: start || null, custom_end_time: end || null });
-    loadEmployees();
+    if (shouldRecompute) {
+      statusEl.textContent = 'Purani dates dhoondi ja rahi hain...';
+      const rows = await sbGet(`daily_attendance?employee_id=eq.${id}&select=attendance_date`);
+      const dates = [...new Set(rows.map(r => r.attendance_date))];
+      for (let i = 0; i < dates.length; i++) {
+        statusEl.textContent = `Dobara calculate ho raha hai: ${i + 1} / ${dates.length} (${dates[i]})`;
+        await sbRpc('compute_daily_attendance', { target_date: dates[i] });
+      }
+      statusEl.textContent = `✓ ${dates.length} purani dates dobara calculate ho gayi.`;
+      setTimeout(loadEmployees, 1500);
+    } else {
+      loadEmployees();
+    }
   } catch (e) { showError(e.message); }
 }
 async function clearTiming(id) {
