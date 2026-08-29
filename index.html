@@ -38,22 +38,25 @@
   h2 { font-size: 18px; margin-bottom: 16px; }
   h3 { font-size: 14px; margin-bottom: 8px; }
   @media print {
-    @page { size: A4 landscape; margin: 9mm; }
+    @page { size: A4 landscape; margin: 6mm; }
     .no-print { display: none !important; }
     body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     main { max-width: none !important; padding: 0 !important; }
     .card { border: none !important; overflow: visible !important; box-shadow: none !important; }
-    #printHeader { display: block !important; margin-bottom: 14px; }
+    #printHeader { display: block !important; margin-bottom: 8px; }
     /* table-layout: fixed => table kabhi bhi page-width se bahar nahi jayegi,
        chahe employee ka naam ya department kitna bhi lamba ho */
     table { width: 100% !important; table-layout: fixed; border-collapse: collapse; font-size: 14px !important; }
-    th, td { padding: 7px 8px !important; white-space: normal !important; word-wrap: break-word; border: 1px solid #999 !important; font-weight: 600 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th, td { padding: 5px 7px !important; white-space: normal !important; word-wrap: break-word; border: 1px solid #999 !important; font-weight: 600 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     th { font-weight: 700 !important; color: #000 !important; }
     thead tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     tbody.emp-group tr:first-child { background: #fff; }
     #totalsBody tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .muted { color: #333 !important; }
     #reportMeta { display: none; }
+    /* Breakdown ki detail lines ko compact karein taake kam jagah lein */
+    tbody.emp-group tr[id^="breakdown-"] > td > div { padding: 6px 10px !important; }
+    tbody.emp-group tr[id^="breakdown-"] > td > div > div { padding: 2px 0 !important; font-size: 11px !important; }
     /* Har employee ka poora block (summary row + breakdown) kabhi bhi
        2 pages mein split nahi hoga — poora block agle page pe chala jayega */
     tbody.emp-group { break-inside: avoid; page-break-inside: avoid; }
