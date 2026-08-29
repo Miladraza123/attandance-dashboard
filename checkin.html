@@ -29,7 +29,7 @@
 
 <div class="card">
   <div class="title">📍 Field Duty Check-In</div>
-  <div class="sub">Apna naam select karein aur check-in/check-out karein</div>
+  <div class="sub">Apna naam select karein aur punch karein — system waqt dekh kar khud check-in ya check-out samjh lega</div>
 
   <label>Apna Naam</label>
   <select id="empSelect"><option value="">-- Select --</option></select>
@@ -49,6 +49,11 @@ const SUPABASE_URL = 'https://cqipkbxbrwcskqqltfft.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_xxmJZtPaqVdoZ6OVdsXXLg_KEQcJ5hZ';
 const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 
+// ===== Timing rules (fixed) =====
+// 11:00–16:00  => Check-in window
+// 16:00–02:00 (agle din) => Check-out window (koi upper time-limit nahi, sirf 2 AM tak)
+// 02:00–11:00 => Dead zone, koi punch nahi
+
 async function sbGet(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
@@ -65,8 +70,7 @@ async function sbPatch(table, id, body) {
 }
 
 let employees = [];
-let rules = null;
-let todayCheckin = null; // aaj ka existing record (agar hai)
+let activeRecord = null; // aaj/raat ka open (non-rejected) record, agar hai
 
 function showStatus(msg, type) {
   const el = document.getElementById('statusMsg');
@@ -74,16 +78,32 @@ function showStatus(msg, type) {
   el.className = 'status ' + type;
 }
 
-function todayKarachiDate() {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+function karachiParts() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(now);
   const get = (t) => parts.find(p => p.type === t).value;
-  return `${get('year')}-${get('month')}-${get('day')}`;
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, hm: `${get('hour')}:${get('minute')}` };
 }
-function nowKarachiTime() {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
-  const h = parts.find(p => p.type === 'hour').value;
-  const m = parts.find(p => p.type === 'minute').value;
-  return `${h}:${m}`;
+
+// Konsa "duty date" hai abhi? Raat 02:00 se pehle ho to pichle din ka hi cycle maana jayega
+function currentDutyDate() {
+  const { date, hm } = karachiParts();
+  if (hm < '02:00') {
+    const d = new Date(date + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  return date;
+}
+
+function currentMode() {
+  // returns 'checkin' | 'checkout' | 'blocked'
+  const { hm } = karachiParts();
+  if (hm >= '11:00' && hm < '16:00') return 'checkin';
+  if (hm >= '16:00' || hm < '02:00') return 'checkout';
+  return 'blocked';
 }
 
 async function init() {
@@ -91,8 +111,6 @@ async function init() {
     employees = await sbGet('employees?active=eq.true&order=full_name.asc');
     const sel = document.getElementById('empSelect');
     sel.innerHTML = '<option value="">-- Select --</option>' + employees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
-    const rulesRows = await sbGet('attendance_rules?id=eq.1');
-    rules = rulesRows[0];
   } catch (e) {
     showStatus('Load error: ' + e.message, 'error');
   }
@@ -119,34 +137,55 @@ document.getElementById('empSelect').addEventListener('change', async (e) => {
   btn.textContent = 'Loading...';
 
   try {
-    const today = todayKarachiDate();
-    const rows = await sbGet(`field_checkins?employee_id=eq.${empId}&checkin_time=gte.${today}T00:00:00&order=checkin_time.desc&limit=1`);
-    todayCheckin = rows[0] || null;
+    const dutyDate = currentDutyDate();
+    // Sirf REJECTED nahi wale records dekhein — reject hone par employee fresh shuru kar sake
+    // checkin_time null bhi ho sakta hai (checkout-only record), isliye checkout_time pe bhi check karein
+    const rows = await sbGet(`field_checkins?employee_id=eq.${empId}&status=neq.rejected&or=(checkin_time.gte.${dutyDate}T00:00:00,checkout_time.gte.${dutyDate}T00:00:00)&order=checkin_time.desc.nullslast&limit=5`);
+    activeRecord = rows.find(r => !r.checkout_time) || null;
+    const completedToday = rows.find(r => r.checkout_time) || null;
 
-    if (todayCheckin && !todayCheckin.checkout_time) {
-      // Already checked in, checkout abhi baaki hai
+    const mode = currentMode();
+
+    if (mode === 'blocked') {
+      btn.disabled = true;
+      btn.textContent = 'Abhi punch window nahi hai (02:00–11:00)';
+      statusBox.style.display = 'none';
+      noteLabel.style.display = 'none';
+      noteInput.style.display = 'none';
+    } else if (activeRecord && !activeRecord.checkout_time) {
+      // Check-in ho chuka hai, ab check-out
       btn.className = 'btn btn-out';
       btn.textContent = '🚪 Check Out';
       btn.disabled = false;
       statusBox.style.display = 'block';
-      statusBox.innerHTML = `✓ Aap <b>${new Date(todayCheckin.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'})}</b> par check-in kar chuke hain. Ab check-out kar sakte hain.`;
+      statusBox.innerHTML = `✓ Aap ${activeRecord.checkin_time ? new Date(activeRecord.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'}) + ' par' : ''} check-in kar chuke hain. Ab check-out kar sakte hain (raat 2 baje tak).`;
       noteLabel.style.display = 'none';
       noteInput.style.display = 'none';
-    } else if (todayCheckin && todayCheckin.checkout_time) {
-      // Poora ho chuka hai aaj
+    } else if (completedToday) {
+      // Aaj ka cycle mukammal ho chuka hai
       btn.disabled = true;
       btn.className = 'btn btn-in';
       btn.textContent = 'Aaj ka field duty record mukammal ho chuka hai';
       statusBox.style.display = 'block';
-      statusBox.innerHTML = `✓ Aaj ka check-in/check-out ho chuka hai (${new Date(todayCheckin.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'})} - ${new Date(todayCheckin.checkout_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'})})`;
+      const inTxt = completedToday.checkin_time ? new Date(completedToday.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'}) : '⚠ Check-in missing';
+      const outTxt = new Date(completedToday.checkout_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'});
+      statusBox.innerHTML = `✓ Aaj mukammal ho chuka hai (${inTxt} → ${outTxt})`;
       noteLabel.style.display = 'none';
       noteInput.style.display = 'none';
-    } else {
-      // Naya check-in
+    } else if (mode === 'checkin') {
       btn.className = 'btn btn-in';
       btn.textContent = '📍 Check In';
       btn.disabled = false;
       statusBox.style.display = 'none';
+      noteLabel.style.display = 'block';
+      noteInput.style.display = 'block';
+    } else {
+      // mode === 'checkout' but no open check-in record — check-in miss ho gaya
+      btn.className = 'btn btn-out';
+      btn.textContent = '🚪 Check Out (Check-in miss ho gaya tha)';
+      btn.disabled = false;
+      statusBox.style.display = 'block';
+      statusBox.innerHTML = `⚠ Aaj ka Check-in record nahi mila. Ye Check-out "Check-in Missing" ke saath record hoga.`;
       noteLabel.style.display = 'block';
       noteInput.style.display = 'block';
     }
@@ -161,7 +200,7 @@ function getLocation() {
     if (!navigator.geolocation) { reject(new Error('Ye browser location support nahi karta')); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(new Error('Location allow karna zaroori hai check-in ke liye. (' + err.message + ')')),
+      (err) => reject(new Error('Location allow karna zaroori hai. (' + err.message + ')')),
       { enableHighAccuracy: true, timeout: 15000 }
     );
   });
@@ -177,6 +216,13 @@ async function reverseGeocode(lat, lng) {
   }
 }
 
+async function getOfficeRules() {
+  try {
+    const rows = await sbGet('attendance_rules?id=eq.1');
+    return rows[0];
+  } catch { return null; }
+}
+
 function haversineMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const toRad = (d) => d * Math.PI / 180;
@@ -186,43 +232,34 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function isWithinOfficeHours() {
-  if (!rules) return true;
-  const now = nowKarachiTime();
-  const start = rules.office_start_time.slice(0,5);
-  const end = rules.office_end_time.slice(0,5);
-  return now >= start && now <= end;
-}
-
 document.getElementById('actionBtn').addEventListener('click', async () => {
   const empId = document.getElementById('empSelect').value;
   const btn = document.getElementById('actionBtn');
   if (!empId) return;
 
-  if (!isWithinOfficeHours()) {
-    showStatus('⚠ Ye office hours (' + rules.office_start_time.slice(0,5) + '–' + rules.office_end_time.slice(0,5) + ') ke bahar hai. Check-in sirf office hours mein ho sakta hai.', 'error');
-    return;
-  }
+  const mode = currentMode();
+  if (mode === 'blocked') { showStatus('Abhi punch window nahi hai.', 'error'); return; }
 
   btn.disabled = true;
   showStatus('📍 Location le rahe hain...', 'loading');
 
   try {
     const loc = await getLocation();
-    const isCheckout = todayCheckin && !todayCheckin.checkout_time;
+    const isCheckout = activeRecord && !activeRecord.checkout_time;
 
     if (isCheckout) {
       showStatus('Check-out ho raha hai...', 'loading');
-      await sbPatch('field_checkins', todayCheckin.id, {
+      await sbPatch('field_checkins', activeRecord.id, {
         checkout_time: new Date().toISOString(),
         checkout_lat: loc.lat,
         checkout_lng: loc.lng,
       });
       showStatus('✓ Check-out ho gaya! Shukriya.', 'success');
       btn.textContent = 'Mukammal ho gaya';
-    } else {
+    } else if (mode === 'checkin') {
       showStatus('Address dhoondi ja rahi hai...', 'loading');
       const address = await reverseGeocode(loc.lat, loc.lng);
+      const rules = await getOfficeRules();
 
       let nearOffice = false;
       if (rules && rules.office_lat && rules.office_lng) {
@@ -231,7 +268,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       }
 
       showStatus('Check-in save ho raha hai...', 'loading');
-      await sbPost('field_checkins', {
+      const created = await sbPost('field_checkins', {
         employee_id: empId,
         checkin_time: new Date().toISOString(),
         checkin_lat: loc.lat,
@@ -241,13 +278,29 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         status: 'pending',
         near_office: nearOffice,
       });
+      activeRecord = created[0];
       showStatus('✓ Check-in ho gaya! Manager ki approval ka intezar hai.', 'success');
       btn.className = 'btn btn-out';
       btn.textContent = '🚪 Check Out';
       btn.disabled = false;
       document.getElementById('noteLabel').style.display = 'none';
       document.getElementById('noteInput').style.display = 'none';
-      todayCheckin = { checkin_time: new Date().toISOString() };
+    } else {
+      // Checkout without prior check-in — checkin_missing record
+      showStatus('Check-out save ho raha hai...', 'loading');
+      await sbPost('field_checkins', {
+        employee_id: empId,
+        checkin_time: null,
+        checkout_time: new Date().toISOString(),
+        checkout_lat: loc.lat,
+        checkout_lng: loc.lng,
+        note: document.getElementById('noteInput').value.trim(),
+        status: 'pending',
+        checkin_missing: true,
+      });
+      showStatus('✓ Check-out ho gaya (Check-in Missing flag ke saath). Manager review karega.', 'success');
+      btn.disabled = true;
+      btn.textContent = 'Mukammal ho gaya';
     }
   } catch (e) {
     showStatus('❌ ' + e.message, 'error');

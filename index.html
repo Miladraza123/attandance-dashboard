@@ -140,6 +140,22 @@
       </div>
       <div id="empFilterList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
     </div>
+
+    <div class="no-print card" style="padding:12px 16px; margin-bottom:16px;">
+      <div style="font-size:12.5px; font-weight:700; color:#78716a; margin-bottom:8px;">Print Options</div>
+      <div style="display:flex; gap:16px; margin-bottom:10px; font-size:13px;">
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="radio" name="printMode" value="summary" id="printModeSummary" checked> Sirf Summary</label>
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="radio" name="printMode" value="detail" id="printModeDetail"> Detail ke saath</label>
+      </div>
+      <div id="printDetailEmpBox" style="display:none; margin-bottom:10px;">
+        <div style="font-size:12px; color:#78716a; margin-bottom:6px;">Kis kis ki detail print honi chahiye:</div>
+        <div id="printDetailEmpList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer;">
+        <input type="checkbox" id="showWaiverReason">
+        Late Waiver ki reason bhi dikhayen (na ho to sirf "MAAF" likha aayega)
+      </label>
+    </div>
     <div class="muted" id="reportMeta" style="font-size:13px; margin-bottom:12px;"></div>
     <div class="no-print" id="reviewBox" style="margin-bottom:16px;"></div>
     <div class="card" style="overflow:auto;">
@@ -546,12 +562,17 @@ async function printPayslip(empId, start, end) {
     data = await sbRpc('compute_employee_breakdown', { emp_id: empId, start_date: start, end_date: end }) || [];
   } catch (e) { showError(e.message); return; }
 
-  const rowsHtml = data.length ? data.map(d => `
+  const showReason = document.getElementById('showWaiverReason').checked;
+  const rowsHtml = data.length ? data.map(d => {
+    let note = d.note;
+    if (d.is_waived && showReason && d.waiver_reason) note += ` — Reason: ${d.waiver_reason}`;
+    return `
     <tr>
       <td class="mono">${d.attendance_date}</td>
-      <td>${d.note}</td>
+      <td>${note}</td>
       <td class="mono" style="text-align:right; color:${Number(d.amount) > 0 ? '#2f6844' : Number(d.amount) < 0 ? '#a13a3a' : '#a89f8f'};">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</td>
-    </tr>`).join('') : `<tr><td colspan="3" style="color:#a89f8f;">Is period mein koi late/absent/leave nahi mila — sab kuch normal raha.</td></tr>`;
+    </tr>`;
+  }).join('') : `<tr><td colspan="3" style="color:#a89f8f;">Is period mein koi late/absent/leave nahi mila — sab kuch normal raha.</td></tr>`;
 
   const totalDeduction = Number(r.late_deduction) + Number(r.absent_deduction);
 
@@ -619,29 +640,50 @@ async function printPayslip(empId, start, end) {
   window.print();
 }
 
+const breakdownDataCache = {}; // empId -> raw breakdown rows (for re-render on waiver-reason toggle)
+
+function renderBreakdownRows(data) {
+  const showReason = document.getElementById('showWaiverReason').checked;
+  if (!data || data.length === 0) {
+    return '<span class="muted" style="font-size:12.5px;">Is range mein koi late/absent/overtime/leave nahi mila — sab kuch normal present raha.</span>';
+  }
+  return `<div style="font-size:12.5px; font-weight:700; color:#78716a; margin-bottom:6px;">Din-ba-din wajah:</div>` +
+    data.map(d => {
+      let note = d.note;
+      if (d.is_waived && showReason && d.waiver_reason) note += ` — Reason: ${d.waiver_reason}`;
+      return `
+      <div style="display:flex; align-items:center; gap:10px; padding:5px 0; border-top:1px solid #e2ddd2;">
+        <span class="mono" style="width:95px; color:#78716a;">${d.attendance_date}</span>
+        <span style="flex:1;">${note}</span>
+        <span class="mono" style="font-weight:700; width:90px; text-align:right; color:${Number(d.amount) > 0 ? '#2f6844' : Number(d.amount) < 0 ? '#a13a3a' : '#a89f8f'};">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</span>
+      </div>`;
+    }).join('');
+}
+
 async function loadBreakdownContent(empId, start, end) {
   const content = document.getElementById(`breakdown-content-${empId}`);
-  if (content.dataset.loaded === `${start}|${end}`) return; // pehle se load ho chuka hai isi range ke liye
+  if (content.dataset.loaded === `${start}|${end}`) {
+    content.innerHTML = renderBreakdownRows(breakdownDataCache[empId]); // waiver-toggle ke hisaab se dobara render
+    return breakdownDataCache[empId];
+  }
   content.innerHTML = '<span class="muted" style="font-size:12.5px;">Loading...</span>';
   try {
     const data = await sbRpc('compute_employee_breakdown', { emp_id: empId, start_date: start, end_date: end });
-    if (!data || data.length === 0) {
-      content.innerHTML = '<span class="muted" style="font-size:12.5px;">Is range mein koi late/absent/overtime/leave nahi mila — sab kuch normal present raha.</span>';
-    } else {
-      content.innerHTML = `<div style="font-size:12.5px; font-weight:700; color:#78716a; margin-bottom:6px;">Din-ba-din wajah:</div>` +
-        data.map(d => `
-          <div style="display:flex; align-items:center; gap:10px; padding:5px 0; border-top:1px solid #e2ddd2;">
-            <span class="mono" style="width:95px; color:#78716a;">${d.attendance_date}</span>
-            <span style="flex:1;">${d.note}</span>
-            <span class="mono" style="font-weight:700; width:90px; text-align:right; color:${Number(d.amount) > 0 ? '#2f6844' : Number(d.amount) < 0 ? '#a13a3a' : '#a89f8f'};">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</span>
-          </div>`).join('');
-    }
+    breakdownDataCache[empId] = data;
+    content.innerHTML = renderBreakdownRows(data);
     content.dataset.loaded = `${start}|${end}`;
     return data;
   } catch (e) {
     content.innerHTML = `<span style="color:#a13a3a; font-size:12.5px;">Error: ${e.message}</span>`;
   }
 }
+document.getElementById('showWaiverReason').addEventListener('change', () => {
+  // Jo bhi breakdown abhi khule hain, unhe naye toggle ke hisaab se dobara render karein
+  Object.keys(breakdownDataCache).forEach(empId => {
+    const content = document.getElementById(`breakdown-content-${empId}`);
+    if (content) content.innerHTML = renderBreakdownRows(breakdownDataCache[empId]);
+  });
+});
 
 async function toggleBreakdown(empId, start, end) {
   const row = document.getElementById(`breakdown-${empId}`);
@@ -811,20 +853,49 @@ document.getElementById('btnExportCSV').addEventListener('click', () => {
   a.download = `payroll-${document.getElementById('startDate').value}-to-${document.getElementById('endDate').value}.csv`;
   a.click();
 });
+let selectedDetailEmpIds = new Set();
+function renderPrintDetailEmpList() {
+  const filtered = reportCache.filter(r => selectedEmpIds.has(r.employee_id));
+  if (selectedDetailEmpIds.size === 0) {
+    filtered.forEach(r => selectedDetailEmpIds.add(r.employee_id));
+  }
+  const list = document.getElementById('printDetailEmpList');
+  list.innerHTML = filtered.map(r => `
+    <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; background:#efe9dc; padding:5px 10px; border-radius:6px; cursor:pointer;">
+      <input type="checkbox" ${selectedDetailEmpIds.has(r.employee_id) ? 'checked' : ''} onchange="toggleDetailEmp('${r.employee_id}', this.checked)">
+      ${r.employee_name}
+    </label>`).join('');
+}
+function toggleDetailEmp(id, checked) {
+  if (checked) selectedDetailEmpIds.add(id); else selectedDetailEmpIds.delete(id);
+}
+document.getElementById('printModeDetail').addEventListener('change', () => {
+  document.getElementById('printDetailEmpBox').style.display = 'block';
+  renderPrintDetailEmpList();
+});
+document.getElementById('printModeSummary').addEventListener('change', () => {
+  document.getElementById('printDetailEmpBox').style.display = 'none';
+});
+
 document.getElementById('btnPrint').addEventListener('click', async () => {
   const start = document.getElementById('startDate').value;
   const end = document.getElementById('endDate').value;
-  const filtered = reportCache.filter(r => selectedEmpIds.has(r.employee_id));
+  const detailMode = document.getElementById('printModeDetail').checked;
   const btn = document.getElementById('btnPrint');
-  btn.textContent = '🖨 Preparing...';
-  // Print se pehle har employee ka breakdown load karke row visible karein
-  // (taake print mein sab wajah dikhein, na ke sirf jo pehle click ki thi)
-  await Promise.all(filtered.map(async (r) => {
-    const row = document.getElementById(`breakdown-${r.employee_id}`);
-    if (row) row.style.display = 'table-row';
-    await loadBreakdownContent(r.employee_id, start, end);
-  }));
-  btn.textContent = '🖨 Print';
+
+  // Pehle sab breakdown rows hide kar dein (clean state)
+  document.querySelectorAll('tr[id^="breakdown-"]').forEach(row => row.style.display = 'none');
+
+  if (detailMode) {
+    const toShow = reportCache.filter(r => selectedEmpIds.has(r.employee_id) && selectedDetailEmpIds.has(r.employee_id));
+    btn.textContent = '🖨 Preparing...';
+    await Promise.all(toShow.map(async (r) => {
+      const row = document.getElementById(`breakdown-${r.employee_id}`);
+      if (row) row.style.display = 'table-row';
+      await loadBreakdownContent(r.employee_id, start, end);
+    }));
+    btn.textContent = '🖨 Print';
+  }
   window.print();
 });
 
@@ -965,15 +1036,19 @@ async function loadFieldDuty() {
 
     const statusColor = { pending: '#a6650a', approved: '#2f6844', rejected: '#a13a3a' };
     document.getElementById('fieldDutyList').innerHTML = rows.map(r => {
-      const dur = r.checkout_time ? Math.round((new Date(r.checkout_time) - new Date(r.checkin_time)) / 60000) : null;
+      const dur = (r.checkin_time && r.checkout_time) ? Math.round((new Date(r.checkout_time) - new Date(r.checkin_time)) / 60000) : null;
+      const dateForRecompute = (r.checkin_time || r.checkout_time || '').slice(0, 10);
       return `
       <div class="card" style="padding:14px 16px; margin-bottom:10px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
           <div>
-            <div style="font-weight:700;">${r.employees ? r.employees.full_name : ''} ${r.near_office ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;">⚠ Office ke pass</span>' : ''}</div>
+            <div style="font-weight:700;">${r.employees ? r.employees.full_name : ''}
+              ${r.near_office ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;"> ⚠ Office ke pass</span>' : ''}
+              ${r.checkin_missing ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;"> ⚠ Check-in Missing</span>' : ''}
+            </div>
             <div class="mono muted" style="font-size:12px; margin-top:2px;">
-              In: ${new Date(r.checkin_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
-              ${r.checkout_time ? ' → Out: ' + new Date(r.checkout_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', hour:'2-digit', minute:'2-digit' }) + ` (${dur} min)` : ' — abhi field mein hain'}
+              In: ${r.checkin_time ? new Date(r.checkin_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'}
+              ${r.checkout_time ? ' → Out: ' + new Date(r.checkout_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) + (dur !== null ? ` (${dur} min)` : '') : ' — abhi field mein hain'}
             </div>
             <div style="font-size:12.5px; margin-top:4px; color:#78716a;">📍 ${r.checkin_address || '—'}</div>
             ${r.note ? `<div style="font-size:12.5px; margin-top:2px;">📝 ${r.note}</div>` : ''}
@@ -982,7 +1057,7 @@ async function loadFieldDuty() {
             <div style="font-weight:700; color:${statusColor[r.status]}; text-transform:uppercase; font-size:11.5px;">${r.status}</div>
             ${r.status === 'pending' ? `
               <div style="margin-top:6px; display:flex; gap:6px;">
-                <button class="btn btn-dark" style="height:30px; padding:4px 10px; font-size:12px;" onclick="approveFieldDuty('${r.id}', '${r.checkin_time}')">✓ Approve</button>
+                <button class="btn btn-dark" style="height:30px; padding:4px 10px; font-size:12px;" onclick="approveFieldDuty('${r.id}', '${dateForRecompute}')">✓ Approve</button>
                 <button class="btn btn-light" style="height:30px; padding:4px 10px; font-size:12px;" onclick="rejectFieldDuty('${r.id}')">✗ Reject</button>
               </div>` : ''}
           </div>
@@ -991,11 +1066,10 @@ async function loadFieldDuty() {
     }).join('') || '<div class="card" style="padding:16px; color:#a89f8f; font-size:13px;">Koi field duty check-in nahi.</div>';
   } catch (e) { showError(e.message); }
 }
-async function approveFieldDuty(id, checkinTime) {
+async function approveFieldDuty(id, date) {
   try {
     clearError();
     await sbPatch('field_checkins', id, { status: 'approved' });
-    const date = checkinTime.slice(0, 10);
     await sbRpc('compute_daily_attendance', { target_date: date });
     loadFieldDuty();
   } catch (e) { showError(e.message); }
