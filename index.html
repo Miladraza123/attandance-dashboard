@@ -111,6 +111,7 @@
     <button data-tab="attlog">Attendance Log</button>
     <button data-tab="employees">Employees</button>
     <button data-tab="holidays">Holidays &amp; Leaves</button>
+    <button data-tab="fieldduty">Field Duty <span id="pendingBadge" style="display:none; background:#c23b3b; color:#fff; border-radius:10px; padding:1px 6px; font-size:10px; margin-left:2px;"></span></button>
     <button data-tab="policy">Policy</button>
   </nav>
 </header>
@@ -245,6 +246,13 @@
     <div class="card" id="waiversList"></div>
   </div>
 
+  <!-- FIELD DUTY TAB -->
+  <div id="tab-fieldduty" class="tab-content">
+    <h2 style="margin-bottom:4px;">Field Duty Check-ins</h2>
+    <div class="muted" style="font-size:13px; margin-bottom:20px;">Riders ke check-in/check-out yahan approve/reject karein. Check-in page: <span class="mono" style="font-size:11.5px;">checkin.html</span></div>
+    <div id="fieldDutyList"></div>
+  </div>
+
   <!-- POLICY TAB -->
   <div id="tab-policy" class="tab-content">
     <h2 style="margin-bottom:4px;">Attendance Rules</h2>
@@ -265,6 +273,13 @@
           <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
         </select>
       </div>
+      <div style="border-top:1px solid #efe9dc; padding-top:10px;">
+        <label style="font-weight:700;">Office Location (Field Duty anomaly-check ke liye)</label>
+        <div class="muted" style="font-size:11.5px; margin-bottom:8px;">Google Maps mein office pe right-click karke coordinates copy kar sakte hain.</div>
+      </div>
+      <div><label>Office Latitude</label><input type="number" step="any" id="rOfficeLat" placeholder="jaise 24.8607"></div>
+      <div><label>Office Longitude</label><input type="number" step="any" id="rOfficeLng" placeholder="jaise 67.0011"></div>
+      <div><label>Radius (meters) — is se andar Field Duty check-in "near office" flag hoga</label><input type="number" id="rOfficeRadius"></div>
       <button class="btn btn-dark" id="btnSaveRules" style="align-self:flex-start;">💾 Save Rules</button>
       <div id="rulesSavedMsg" style="font-size:12.5px; color:#2f6844; display:none;">✓ Saved — nayi report se ye rules apply hongi.</div>
     </div>
@@ -906,6 +921,9 @@ async function loadRules() {
     document.getElementById('rTotalMinutes').value = r.total_working_minutes_month;
     document.getElementById('rFullDayMinutes').value = r.full_day_minutes;
     document.getElementById('rWeeklyOff').value = r.weekly_off_day;
+    document.getElementById('rOfficeLat').value = r.office_lat || '';
+    document.getElementById('rOfficeLng').value = r.office_lng || '';
+    document.getElementById('rOfficeRadius').value = r.office_radius_meters || 200;
   } catch (e) { showError(e.message); }
 }
 document.getElementById('btnSaveRules').addEventListener('click', async () => {
@@ -919,6 +937,9 @@ document.getElementById('btnSaveRules').addEventListener('click', async () => {
     total_working_minutes_month: Number(document.getElementById('rTotalMinutes').value),
     full_day_minutes: Number(document.getElementById('rFullDayMinutes').value),
     weekly_off_day: Number(document.getElementById('rWeeklyOff').value),
+    office_lat: document.getElementById('rOfficeLat').value ? Number(document.getElementById('rOfficeLat').value) : null,
+    office_lng: document.getElementById('rOfficeLng').value ? Number(document.getElementById('rOfficeLng').value) : null,
+    office_radius_meters: Number(document.getElementById('rOfficeRadius').value) || 200,
   };
   try {
     clearError();
@@ -928,6 +949,65 @@ document.getElementById('btnSaveRules').addEventListener('click', async () => {
     setTimeout(() => { msg.style.display = 'none'; }, 3000);
   } catch (e) { showError(e.message); }
 });
+
+// ---- Field Duty ----
+async function loadFieldDuty() {
+  try {
+    const rows = await sbGet('field_checkins?select=*,employees(full_name)&order=checkin_time.desc&limit=100');
+    const pending = rows.filter(r => r.status === 'pending');
+    const badge = document.getElementById('pendingBadge');
+    if (pending.length > 0) {
+      badge.style.display = 'inline-block';
+      badge.textContent = pending.length;
+    } else {
+      badge.style.display = 'none';
+    }
+
+    const statusColor = { pending: '#a6650a', approved: '#2f6844', rejected: '#a13a3a' };
+    document.getElementById('fieldDutyList').innerHTML = rows.map(r => {
+      const dur = r.checkout_time ? Math.round((new Date(r.checkout_time) - new Date(r.checkin_time)) / 60000) : null;
+      return `
+      <div class="card" style="padding:14px 16px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div style="font-weight:700;">${r.employees ? r.employees.full_name : ''} ${r.near_office ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;">⚠ Office ke pass</span>' : ''}</div>
+            <div class="mono muted" style="font-size:12px; margin-top:2px;">
+              In: ${new Date(r.checkin_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
+              ${r.checkout_time ? ' → Out: ' + new Date(r.checkout_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', hour:'2-digit', minute:'2-digit' }) + ` (${dur} min)` : ' — abhi field mein hain'}
+            </div>
+            <div style="font-size:12.5px; margin-top:4px; color:#78716a;">📍 ${r.checkin_address || '—'}</div>
+            ${r.note ? `<div style="font-size:12.5px; margin-top:2px;">📝 ${r.note}</div>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700; color:${statusColor[r.status]}; text-transform:uppercase; font-size:11.5px;">${r.status}</div>
+            ${r.status === 'pending' ? `
+              <div style="margin-top:6px; display:flex; gap:6px;">
+                <button class="btn btn-dark" style="height:30px; padding:4px 10px; font-size:12px;" onclick="approveFieldDuty('${r.id}', '${r.checkin_time}')">✓ Approve</button>
+                <button class="btn btn-light" style="height:30px; padding:4px 10px; font-size:12px;" onclick="rejectFieldDuty('${r.id}')">✗ Reject</button>
+              </div>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('') || '<div class="card" style="padding:16px; color:#a89f8f; font-size:13px;">Koi field duty check-in nahi.</div>';
+  } catch (e) { showError(e.message); }
+}
+async function approveFieldDuty(id, checkinTime) {
+  try {
+    clearError();
+    await sbPatch('field_checkins', id, { status: 'approved' });
+    const date = checkinTime.slice(0, 10);
+    await sbRpc('compute_daily_attendance', { target_date: date });
+    loadFieldDuty();
+  } catch (e) { showError(e.message); }
+}
+async function rejectFieldDuty(id) {
+  try {
+    clearError();
+    await sbPatch('field_checkins', id, { status: 'rejected' });
+    loadFieldDuty();
+  } catch (e) { showError(e.message); }
+}
+
 
 // ---- Init ----
 function todayISO() {
@@ -953,6 +1033,7 @@ loadReport();
 renderReviewBox();
 loadLog();
 loadRules();
+loadFieldDuty();
 </script>
 
 </body>

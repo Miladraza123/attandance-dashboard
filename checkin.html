@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Duty Check-In</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f2ec; color: #2a2622; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: #fff; border-radius: 14px; padding: 28px 24px; max-width: 400px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .title { font-size: 20px; font-weight: 700; margin-bottom: 4px; text-align: center; }
+  .sub { font-size: 13px; color: #78716a; text-align: center; margin-bottom: 24px; }
+  label { font-size: 13px; color: #78716a; font-weight: 600; display: block; margin-bottom: 6px; }
+  select, textarea { width: 100%; padding: 12px; border: 1px solid #d8d2c4; border-radius: 8px; font-size: 15px; font-family: inherit; margin-bottom: 16px; }
+  textarea { resize: vertical; min-height: 60px; }
+  .btn { width: 100%; padding: 14px; border-radius: 8px; border: none; font-weight: 700; font-size: 16px; cursor: pointer; font-family: inherit; }
+  .btn-in { background: #2f6844; color: #fff; }
+  .btn-out { background: #a6650a; color: #fff; }
+  .btn:disabled { background: #ccc; cursor: not-allowed; }
+  .status { margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px; text-align: center; display: none; }
+  .status.error { background: #f7e2e2; color: #a13a3a; display: block; }
+  .status.success { background: #e7f2eb; color: #2f6844; display: block; }
+  .status.loading { background: #efe9dc; color: #78716a; display: block; }
+  .current-status { background: #efe9dc; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 13px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="title">📍 Field Duty Check-In</div>
+  <div class="sub">Apna naam select karein aur check-in/check-out karein</div>
+
+  <label>Apna Naam</label>
+  <select id="empSelect"><option value="">-- Select --</option></select>
+
+  <div id="currentStatus" class="current-status"></div>
+
+  <label id="noteLabel" style="display:none;">Wajah / Note (optional)</label>
+  <textarea id="noteInput" placeholder="jaise: Customer XYZ ko delivery" style="display:none;"></textarea>
+
+  <button class="btn btn-in" id="actionBtn" disabled>Pehle naam select karein</button>
+
+  <div id="statusMsg" class="status"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://cqipkbxbrwcskqqltfft.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_xxmJZtPaqVdoZ6OVdsXXLg_KEQcJ5hZ';
+const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+
+async function sbGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  return res.json();
+}
+async function sbPost(table, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  return res.json();
+}
+async function sbPatch(table, id, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: 'PATCH', headers, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+}
+
+let employees = [];
+let rules = null;
+let todayCheckin = null; // aaj ka existing record (agar hai)
+
+function showStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status ' + type;
+}
+
+function todayKarachiDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const get = (t) => parts.find(p => p.type === t).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+function nowKarachiTime() {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+  const h = parts.find(p => p.type === 'hour').value;
+  const m = parts.find(p => p.type === 'minute').value;
+  return `${h}:${m}`;
+}
+
+async function init() {
+  try {
+    employees = await sbGet('employees?active=eq.true&order=full_name.asc');
+    const sel = document.getElementById('empSelect');
+    sel.innerHTML = '<option value="">-- Select --</option>' + employees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+    const rulesRows = await sbGet('attendance_rules?id=eq.1');
+    rules = rulesRows[0];
+  } catch (e) {
+    showStatus('Load error: ' + e.message, 'error');
+  }
+}
+
+document.getElementById('empSelect').addEventListener('change', async (e) => {
+  const empId = e.target.value;
+  const btn = document.getElementById('actionBtn');
+  const noteLabel = document.getElementById('noteLabel');
+  const noteInput = document.getElementById('noteInput');
+  const statusBox = document.getElementById('currentStatus');
+  document.getElementById('statusMsg').className = 'status';
+
+  if (!empId) {
+    btn.disabled = true;
+    btn.textContent = 'Pehle naam select karein';
+    statusBox.style.display = 'none';
+    noteLabel.style.display = 'none';
+    noteInput.style.display = 'none';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+
+  try {
+    const today = todayKarachiDate();
+    const rows = await sbGet(`field_checkins?employee_id=eq.${empId}&checkin_time=gte.${today}T00:00:00&order=checkin_time.desc&limit=1`);
+    todayCheckin = rows[0] || null;
+
+    if (todayCheckin && !todayCheckin.checkout_time) {
+      // Already checked in, checkout abhi baaki hai
+      btn.className = 'btn btn-out';
+      btn.textContent = '🚪 Check Out';
+      btn.disabled = false;
+      statusBox.style.display = 'block';
+      statusBox.innerHTML = `✓ Aap <b>${new Date(todayCheckin.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'})}</b> par check-in kar chuke hain. Ab check-out kar sakte hain.`;
+      noteLabel.style.display = 'none';
+      noteInput.style.display = 'none';
+    } else if (todayCheckin && todayCheckin.checkout_time) {
+      // Poora ho chuka hai aaj
+      btn.disabled = true;
+      btn.className = 'btn btn-in';
+      btn.textContent = 'Aaj ka field duty record mukammal ho chuka hai';
+      statusBox.style.display = 'block';
+      statusBox.innerHTML = `✓ Aaj ka check-in/check-out ho chuka hai (${new Date(todayCheckin.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'})} - ${new Date(todayCheckin.checkout_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'})})`;
+      noteLabel.style.display = 'none';
+      noteInput.style.display = 'none';
+    } else {
+      // Naya check-in
+      btn.className = 'btn btn-in';
+      btn.textContent = '📍 Check In';
+      btn.disabled = false;
+      statusBox.style.display = 'none';
+      noteLabel.style.display = 'block';
+      noteInput.style.display = 'block';
+    }
+  } catch (err) {
+    showStatus('Error: ' + err.message, 'error');
+    btn.disabled = true;
+  }
+});
+
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error('Ye browser location support nahi karta')); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => reject(new Error('Location allow karna zaroori hai check-in ke liye. (' + err.message + ')')),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  });
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`);
+    const data = await res.json();
+    return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } catch {
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+}
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function isWithinOfficeHours() {
+  if (!rules) return true;
+  const now = nowKarachiTime();
+  const start = rules.office_start_time.slice(0,5);
+  const end = rules.office_end_time.slice(0,5);
+  return now >= start && now <= end;
+}
+
+document.getElementById('actionBtn').addEventListener('click', async () => {
+  const empId = document.getElementById('empSelect').value;
+  const btn = document.getElementById('actionBtn');
+  if (!empId) return;
+
+  if (!isWithinOfficeHours()) {
+    showStatus('⚠ Ye office hours (' + rules.office_start_time.slice(0,5) + '–' + rules.office_end_time.slice(0,5) + ') ke bahar hai. Check-in sirf office hours mein ho sakta hai.', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  showStatus('📍 Location le rahe hain...', 'loading');
+
+  try {
+    const loc = await getLocation();
+    const isCheckout = todayCheckin && !todayCheckin.checkout_time;
+
+    if (isCheckout) {
+      showStatus('Check-out ho raha hai...', 'loading');
+      await sbPatch('field_checkins', todayCheckin.id, {
+        checkout_time: new Date().toISOString(),
+        checkout_lat: loc.lat,
+        checkout_lng: loc.lng,
+      });
+      showStatus('✓ Check-out ho gaya! Shukriya.', 'success');
+      btn.textContent = 'Mukammal ho gaya';
+    } else {
+      showStatus('Address dhoondi ja rahi hai...', 'loading');
+      const address = await reverseGeocode(loc.lat, loc.lng);
+
+      let nearOffice = false;
+      if (rules && rules.office_lat && rules.office_lng) {
+        const dist = haversineMeters(loc.lat, loc.lng, rules.office_lat, rules.office_lng);
+        nearOffice = dist <= (rules.office_radius_meters || 200);
+      }
+
+      showStatus('Check-in save ho raha hai...', 'loading');
+      await sbPost('field_checkins', {
+        employee_id: empId,
+        checkin_time: new Date().toISOString(),
+        checkin_lat: loc.lat,
+        checkin_lng: loc.lng,
+        checkin_address: address,
+        note: document.getElementById('noteInput').value.trim(),
+        status: 'pending',
+        near_office: nearOffice,
+      });
+      showStatus('✓ Check-in ho gaya! Manager ki approval ka intezar hai.', 'success');
+      btn.className = 'btn btn-out';
+      btn.textContent = '🚪 Check Out';
+      btn.disabled = false;
+      document.getElementById('noteLabel').style.display = 'none';
+      document.getElementById('noteInput').style.display = 'none';
+      todayCheckin = { checkin_time: new Date().toISOString() };
+    }
+  } catch (e) {
+    showStatus('❌ ' + e.message, 'error');
+    btn.disabled = false;
+  }
+});
+
+init();
+</script>
+
+</body>
+</html>
