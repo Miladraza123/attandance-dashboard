@@ -120,7 +120,7 @@ async function init() {
 async function hasMachinePunchToday(empId) {
   const emp = employees.find(e => e.id === empId);
   if (!emp) return false;
-  const today = todayKarachiDate();
+  const today = karachiParts().date;
   try {
     const rows = await sbGet(`attendance_logs?machine_user_id=eq.${emp.machine_user_id}&punch_time=gte.${today}T00:00:00&limit=1`);
     return rows.length > 0;
