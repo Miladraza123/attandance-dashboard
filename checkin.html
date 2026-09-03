@@ -117,14 +117,18 @@ async function init() {
   }
 }
 
-async function hasMachinePunchToday(empId) {
+async function getMachineStatusToday(empId) {
   const emp = employees.find(e => e.id === empId);
-  if (!emp) return false;
+  if (!emp) return 'none';
   const today = karachiParts().date;
   try {
-    const rows = await sbGet(`attendance_logs?machine_user_id=eq.${emp.machine_user_id}&punch_time=gte.${today}T00:00:00&limit=1`);
-    return rows.length > 0;
-  } catch { return false; }
+    const rows = await sbGet(`attendance_logs?machine_user_id=eq.${emp.machine_user_id}&punch_time=gte.${today}T00:00:00&order=punch_time.desc&limit=1`);
+    if (rows.length === 0) return 'none';
+    const lastPunchTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(rows[0].punch_time));
+    // Agar aakhri punch 4 PM se pehle hai — matlab sirf subah ka check-in hua, checkout abhi baaki
+    // Agar 4 PM ke baad hai — matlab sham ka checkout bhi ho chuka, din mukammal hai
+    return lastPunchTime < '16:00' ? 'checkin_only' : 'complete';
+  } catch { return 'none'; }
 }
 
 document.getElementById('empSelect').addEventListener('change', async (e) => {
@@ -154,8 +158,8 @@ document.getElementById('empSelect').addEventListener('change', async (e) => {
     const rows = await sbGet(`field_checkins?employee_id=eq.${empId}&status=neq.rejected&or=(checkin_time.gte.${dutyDate}T00:00:00,checkout_time.gte.${dutyDate}T00:00:00)&order=checkin_time.desc.nullslast&limit=5`);
     activeRecord = rows.find(r => !r.checkout_time) || null;
     const completedToday = rows.find(r => r.checkout_time) || null;
-    const machineCheckedIn = !activeRecord && !completedToday ? await hasMachinePunchToday(empId) : false;
-    machineCheckedInState = machineCheckedIn;
+    const machineStatus = !activeRecord && !completedToday ? await getMachineStatusToday(empId) : 'none';
+    machineCheckedInState = machineStatus === 'checkin_only';
 
     const mode = currentMode();
 
@@ -180,12 +184,23 @@ document.getElementById('empSelect').addEventListener('change', async (e) => {
       btn.className = 'btn btn-in';
       btn.textContent = 'Aaj ka field duty record mukammal ho chuka hai';
       statusBox.style.display = 'block';
-      const inTxt = completedToday.checkin_time ? new Date(completedToday.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'}) : '⚠ Check-in missing';
+      const inTxt = completedToday.checkin_time
+        ? new Date(completedToday.checkin_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'})
+        : (completedToday.checkin_missing ? '⚠ Check-in missing' : '✓ Check-in via Machine');
       const outTxt = new Date(completedToday.checkout_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Karachi'});
       statusBox.innerHTML = `✓ Aaj mukammal ho chuka hai (${inTxt} → ${outTxt})`;
       noteLabel.style.display = 'none';
       noteInput.style.display = 'none';
-    } else if (machineCheckedIn) {
+    } else if (machineStatus === 'complete') {
+      // Machine se hi poora din (check-in + check-out) ho chuka hai — kuch karne ki zaroorat nahi
+      btn.disabled = true;
+      btn.className = 'btn btn-in';
+      btn.textContent = 'Aaj ka record machine se mukammal ho chuka hai';
+      statusBox.style.display = 'block';
+      statusBox.innerHTML = `✓ Aapka aaj ka check-in aur check-out dono machine se ho chuke hain. Yahan kuch karne ki zaroorat nahi.`;
+      noteLabel.style.display = 'none';
+      noteInput.style.display = 'none';
+    } else if (machineStatus === 'checkin_only') {
       // Machine par pehle se Check-in ho chuka hai — sirf Check-out ka option
       btn.className = 'btn btn-out';
       btn.textContent = '🚪 Check Out (Machine se Check-in mil chuka hai)';
