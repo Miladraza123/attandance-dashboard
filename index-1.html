@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Office Attendance & Payroll</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f2ec; color: #2a2622; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  header { background: #2a2622; color: #f5f2ec; padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  header .title-sm { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #c9a876; font-weight: 600; }
+  header .title-lg { font-size: 22px; font-weight: 700; }
+  nav { display: flex; gap: 4px; background: #3a352e; padding: 4px; border-radius: 8px; flex-wrap: wrap; }
+  nav button { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; background: transparent; color: #f5f2ec; font-weight: 600; font-size: 13px; font-family: inherit; }
+  nav button.active { background: #c9a876; color: #2a2622; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px; }
+  .card { background: #fff; border: 1px solid #e2ddd2; border-radius: 10px; }
+  .row-flex { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  label { font-size: 12px; color: #78716a; font-weight: 600; display: block; margin-bottom: 4px; }
+  input, select { padding: 8px 10px; border: 1px solid #d8d2c4; border-radius: 6px; font-size: 13px; font-family: inherit; }
+  .btn { display: inline-flex; gap: 6px; align-items: center; border: none; padding: 9px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; height: 38px; font-size: 13px; font-family: inherit; }
+  .btn-dark { background: #2a2622; color: #f5f2ec; }
+  .btn-light { background: #fff; color: #2a2622; border: 1px solid #d8d2c4; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 9px 12px; text-align: left; }
+  thead tr { background: #efe9dc; }
+  tbody tr { border-top: 1px solid #efe9dc; }
+  #totalsBody tr { border-top: 2px solid #2a2622; background: #efe9dc; font-weight: 700; }
+  .list-row { display: flex; align-items: center; padding: 12px 16px; border-top: 1px solid #efe9dc; font-size: 13px; gap: 10px; }
+  .list-row:first-child { border-top: none; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #a13a3a; font-size: 16px; }
+  .error-bar { background: #f7e2e2; color: #a13a3a; padding: 10px 28px; font-size: 13px; }
+  .muted { color: #78716a; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  h2 { font-size: 18px; margin-bottom: 16px; }
+  h3 { font-size: 14px; margin-bottom: 8px; }
+  @media print {
+    @page { size: A4 landscape; margin: 6mm; }
+    .no-print { display: none !important; }
+    body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    main { max-width: none !important; padding: 0 !important; }
+    .card { border: none !important; overflow: visible !important; box-shadow: none !important; }
+    #printHeader { display: block !important; margin-bottom: 8px; }
+    /* table-layout: fixed => table kabhi bhi page-width se bahar nahi jayegi,
+       chahe employee ka naam ya department kitna bhi lamba ho */
+    table { width: 100% !important; table-layout: fixed; border-collapse: collapse; font-size: 14px !important; }
+    th, td { padding: 5px 7px !important; white-space: normal !important; word-wrap: break-word; border: 1px solid #999 !important; font-weight: 600 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { font-weight: 700 !important; color: #000 !important; }
+    thead tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tbody.emp-group tr:first-child { background: #fff; }
+    #totalsBody tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .muted { color: #333 !important; }
+    #reportMeta { display: none; }
+    /* Breakdown ki detail lines ko compact karein taake kam jagah lein */
+    tbody.emp-group tr[id^="breakdown-"] > td > div { padding: 6px 10px !important; }
+    tbody.emp-group tr[id^="breakdown-"] > td > div > div { padding: 2px 0 !important; font-size: 11px !important; }
+    /* Har employee ka poora block (summary row + breakdown) kabhi bhi
+       2 pages mein split nahi hoga — poora block agle page pe chala jayega */
+    tbody.emp-group { break-inside: avoid; page-break-inside: avoid; }
+  }
+  #printHeader { display: none; }
+
+  /* ===== Individual Payslip ===== */
+  #payslipContainer { display: none; }
+  .payslip-page { font-family: 'IBM Plex Sans', sans-serif; color: #2a2622; }
+  .payslip-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 3px solid #2a2622; padding-bottom: 14px; margin-bottom: 18px; }
+  .payslip-co { font-size: 20px; font-weight: 700; }
+  .payslip-sub { font-size: 11px; color: #78716a; margin-top:2px; }
+  .payslip-title { font-size: 16px; font-weight: 700; color: #78716a; }
+  .payslip-period { font-size: 12px; margin-top: 4px; }
+  .payslip-info { display:grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; margin-bottom: 20px; font-size: 12.5px; }
+  .payslip-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 12.5px; }
+  .payslip-table th, .payslip-table td { padding: 7px 9px; text-align: left; border-bottom: 1px solid #e2ddd2; }
+  .payslip-table thead tr { background: #efe9dc; }
+  .payslip-summary { display:flex; justify-content: flex-end; margin-bottom: 20px; }
+  .payslip-summary table { width: 300px; font-size: 12.5px; }
+  .payslip-summary td { padding: 5px 9px; }
+  .payslip-summary .final-row td { border-top: 2px solid #2a2622; font-weight: 700; font-size: 14px; padding-top: 9px; }
+  .payslip-footer { display:flex; justify-content: space-between; margin-top: 40px; font-size: 11px; color: #78716a; }
+  .sig-line { border-top: 1px solid #999; width: 160px; text-align:center; padding-top: 5px; }
+
+  @media print {
+    body.payslip-mode > *:not(#payslipContainer) { display: none !important; }
+    body.payslip-mode #payslipContainer { display: block !important; }
+  }
+  @media (max-width: 640px) {
+    header { padding: 14px 16px; }
+    header .title-lg { font-size: 18px; }
+    nav button { padding: 7px 10px; font-size: 12px; }
+    main { padding: 14px; }
+    .row-flex { flex-direction: column; align-items: stretch; }
+    .row-flex > div { width: 100% !important; min-width: 0 !important; }
+    input, select { width: 100%; }
+    .btn { width: 100%; justify-content: center; }
+    .list-row { flex-wrap: wrap; }
+    h2 { font-size: 16px; }
+    table { font-size: 11px; }
+    th, td { padding: 7px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="no-print">
+  <div>
+    <div class="title-sm">Live · Office Attendance &amp; Payroll</div>
+    <div class="title-lg mono">SpeedFace V3L</div>
+  </div>
+  <nav id="navTabs">
+    <button data-tab="report" class="active">Payroll Report</button>
+    <button data-tab="attlog">Attendance Log</button>
+    <button data-tab="employees">Employees</button>
+    <button data-tab="holidays">Holidays &amp; Leaves</button>
+    <button data-tab="fieldduty">Field Duty <span id="pendingBadge" style="display:none; background:#c23b3b; color:#fff; border-radius:10px; padding:1px 6px; font-size:10px; margin-left:2px;"></span></button>
+    <button data-tab="policy">Policy</button>
+  </nav>
+</header>
+
+<div id="errorBar" class="error-bar no-print" style="display:none;"></div>
+
+<main>
+
+  <!-- REPORT TAB -->
+  <div id="tab-report" class="tab-content active">
+    <div class="row-flex no-print" style="margin-bottom:16px;">
+      <div><label>From</label><input type="date" id="startDate"></div>
+      <div><label>To</label><input type="date" id="endDate"></div>
+      <button class="btn btn-dark" id="btnGetReport">↻ Get Report</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-light" id="btnExportCSV">⬇ Export CSV</button>
+      <button class="btn btn-light" id="btnPrint">🖨 Print</button>
+    </div>
+    <div class="no-print card" style="padding:12px 16px; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <span style="font-size:12.5px; font-weight:700; color:#78716a;">Employees (report mein sirf select kiye hue dikhenge)</span>
+        <span>
+          <button class="btn btn-light" style="height:28px; padding:4px 10px; font-size:11.5px;" id="btnSelectAllEmp">Sab</button>
+          <button class="btn btn-light" style="height:28px; padding:4px 10px; font-size:11.5px;" id="btnSelectNoneEmp">Koi Nahi</button>
+        </span>
+      </div>
+      <div id="empFilterList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+
+    <div class="no-print card" style="padding:12px 16px; margin-bottom:16px;">
+      <div style="font-size:12.5px; font-weight:700; color:#78716a; margin-bottom:8px;">Print Options</div>
+      <div style="display:flex; gap:16px; margin-bottom:10px; font-size:13px;">
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="radio" name="printMode" value="summary" id="printModeSummary" checked> Sirf Summary</label>
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="radio" name="printMode" value="detail" id="printModeDetail"> Detail ke saath</label>
+      </div>
+      <div id="printDetailEmpBox" style="display:none; margin-bottom:10px;">
+        <div style="font-size:12px; color:#78716a; margin-bottom:6px;">Kis kis ki detail print honi chahiye:</div>
+        <div id="printDetailEmpList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer;">
+        <input type="checkbox" id="showWaiverReason">
+        Late Waiver ki reason bhi dikhayen (na ho to sirf "MAAF" likha aayega)
+      </label>
+    </div>
+    <div class="muted" id="reportMeta" style="font-size:13px; margin-bottom:12px;"></div>
+    <div class="no-print" id="reviewBox" style="margin-bottom:16px;"></div>
+    <div class="card" style="overflow:auto;">
+      <table id="reportTable" style="min-width:1000px;">
+        <thead>
+          <tr>
+            <th>Employee</th><th>Dept</th><th style="text-align:right;">Salary</th>
+            <th style="text-align:center;">Present</th><th style="text-align:center;">Late</th>
+            <th style="text-align:center;">Absent</th><th style="text-align:center;">Paid Lv</th>
+            <th style="text-align:center;">Unpaid Lv</th><th style="text-align:center;">1-Punch</th>
+            <th style="text-align:right;">O.T.</th><th style="text-align:right;">Deduct.</th>
+            <th style="text-align:right;">Net</th><th style="text-align:right;">Final Salary</th><th class="no-print" style="text-align:center;">Detail</th>
+          </tr>
+        </thead>
+        <tbody id="reportBody"></tbody>
+        <tbody id="totalsBody"><tr id="reportTotals"></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ATTENDANCE LOG TAB -->
+  <div id="tab-attlog" class="tab-content">
+    <h2 style="margin-bottom:4px;">Attendance Log</h2>
+    <div class="muted" style="font-size:13px; margin-bottom:16px;">Kisi bhi employee ka date-wise ya monthly check-in/check-out dekhein.</div>
+
+    <div class="no-print row-flex" style="margin-bottom:16px;">
+      <div style="min-width:160px;">
+        <label>Employee</label>
+        <select id="logEmp"><option value="">Sab Employees</option></select>
+      </div>
+      <div><label>From</label><input type="date" id="logStart"></div>
+      <div><label>To</label><input type="date" id="logEnd"></div>
+      <button class="btn btn-dark" id="btnLoadLog">↻ Load</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-light" id="btnExportLog">⬇ Export CSV</button>
+    </div>
+
+    <div class="muted" id="logMeta" style="font-size:13px; margin-bottom:12px;"></div>
+
+    <div class="card" style="overflow:auto;">
+      <table style="min-width:700px;">
+        <thead>
+          <tr>
+            <th>Date</th><th>Employee</th><th>Check-in</th><th>Check-out</th>
+            <th style="text-align:center;">Status</th><th style="text-align:center;">Late (min)</th>
+            <th style="text-align:right;">Hours</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- EMPLOYEES TAB -->
+  <div id="tab-employees" class="tab-content">
+    <h2>Employees</h2>
+    <div class="card no-print row-flex" style="padding:16px; margin-bottom:20px;">
+      <div><label>Machine ID</label><input id="empMachineId"></div>
+      <div style="flex:1; min-width:140px;"><label>Full Name</label><input id="empName"></div>
+      <div><label>Department</label><input id="empDept"></div>
+      <div><label>Salary</label><input type="number" id="empSalary"></div>
+      <div><label>Custom Start (optional)</label><input type="time" id="empCustomStart"></div>
+      <div><label>Custom End (optional)</label><input type="time" id="empCustomEnd"></div>
+      <button class="btn btn-dark" id="btnAddEmp">+ Add</button>
+    </div>
+    <div class="muted" style="font-size:12px; margin-bottom:16px;">Custom timing khali chhod dein to employee default office timing (Policy tab) follow karega. Same-day (jaise 9 AM–6 PM) aur raat ki cross-day shift (jaise 8 PM se subah 7 AM) — dono support hoti hain, system khud pehchan leta hai.</div>
+    <div class="card" id="employeesList"></div>
+  </div>
+
+  <!-- HOLIDAYS TAB -->
+  <div id="tab-holidays" class="tab-content">
+    <h2 style="margin-bottom:4px;">Holidays &amp; Leaves</h2>
+    <div class="muted" style="font-size:13px; margin-bottom:20px;">Report nikalne se pehle system khud check karta hai.</div>
+
+    <h3>Company Holiday</h3>
+    <div class="card no-print row-flex" style="padding:16px; margin-bottom:16px;">
+      <div><label>Date</label><input type="date" id="holDate"></div>
+      <div style="flex:1; min-width:160px;"><label>Description</label><input id="holDesc"></div>
+      <button class="btn btn-dark" id="btnAddHoliday">+ Add Holiday</button>
+    </div>
+    <div class="card" id="holidaysList" style="margin-bottom:28px;"></div>
+
+    <h3>Employee Leave</h3>
+    <div class="card no-print row-flex" style="padding:16px; margin-bottom:16px;">
+      <div style="min-width:160px;"><label>Employee</label><select id="leaveEmp"><option value="">Select</option></select></div>
+      <div><label>From</label><input type="date" id="leaveDateFrom"></div>
+      <div><label>To</label><input type="date" id="leaveDateTo"></div>
+      <div><label>Type</label><select id="leaveType"><option value="paid">Paid</option><option value="unpaid">Unpaid</option></select></div>
+      <div style="flex:1; min-width:140px;"><label>Reason</label><input id="leaveReason"></div>
+      <button class="btn btn-dark" id="btnAddLeave">+ Add Leave</button>
+    </div>
+    <div class="card" id="leavesList"></div>
+
+    <h3 style="margin-top:28px;">Late Waiver (kisi din ka late maaf karna — na paisa katega, na free-late quota kategi)</h3>
+    <div class="no-print row-flex" style="margin-bottom:16px;">
+      <div style="min-width:160px;">
+        <label>Employee</label>
+        <select id="waiverEmp"><option value="">Select</option></select>
+      </div>
+      <div><label>Date</label><input type="date" id="waiverDate"></div>
+      <div style="flex:1; min-width:140px;"><label>Reason</label><input id="waiverReason"></div>
+      <button class="btn btn-dark" id="btnAddWaiver">+ Add Waiver</button>
+    </div>
+    <div class="card" id="waiversList"></div>
+  </div>
+
+  <!-- FIELD DUTY TAB -->
+  <div id="tab-fieldduty" class="tab-content">
+    <h2 style="margin-bottom:4px;">Field Duty Check-ins</h2>
+    <div class="muted" style="font-size:13px; margin-bottom:20px;">Riders ke check-in/check-out yahan approve/reject karein. Check-in page: <span class="mono" style="font-size:11.5px;">checkin.html</span></div>
+    <div id="fieldDutyList"></div>
+  </div>
+
+  <!-- POLICY TAB -->
+  <div id="tab-policy" class="tab-content">
+    <h2 style="margin-bottom:4px;">Attendance Rules</h2>
+    <div class="muted" style="font-size:13px; margin-bottom:20px;">Yahan se rules edit karein — direct database mein save hote hain, koi SQL editor nahi chahiye.</div>
+    <div class="card no-print" style="max-width:560px; padding:16px; display:flex; flex-direction:column; gap:14px;">
+      <div><label>Office Start Time</label><input type="time" id="rOfficeStart"></div>
+      <div><label>Office End Time</label><input type="time" id="rOfficeEnd"></div>
+      <div><label>Late Grace Period (minutes)</label><input type="number" id="rGrace"></div>
+      <div><label>Free Late Days per Month</label><input type="number" id="rFreeLate"></div>
+      <div><label>Free Absent Days per Month</label><input type="number" id="rFreeAbsent"></div>
+      <div><label>Overtime Starts After (minutes past end time)</label><input type="number" id="rOvertimeAfter"></div>
+      <div><label>Total Working Minutes / Month</label><input type="number" id="rTotalMinutes"></div>
+      <div><label>Full Day Minutes (absent deduction ke liye)</label><input type="number" id="rFullDayMinutes"></div>
+      <div>
+        <label>Weekly Off Day</label>
+        <select id="rWeeklyOff">
+          <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+          <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+        </select>
+      </div>
+      <div style="border-top:1px solid #efe9dc; padding-top:10px;">
+        <label style="font-weight:700;">Office Location (Field Duty anomaly-check ke liye)</label>
+        <div class="muted" style="font-size:11.5px; margin-bottom:8px;">Google Maps mein office pe right-click karke coordinates copy kar sakte hain.</div>
+      </div>
+      <div><label>Office Latitude</label><input type="number" step="any" id="rOfficeLat" placeholder="jaise 24.8607"></div>
+      <div><label>Office Longitude</label><input type="number" step="any" id="rOfficeLng" placeholder="jaise 67.0011"></div>
+      <div><label>Radius (meters) — is se andar Field Duty check-in "near office" flag hoga</label><input type="number" id="rOfficeRadius"></div>
+      <button class="btn btn-dark" id="btnSaveRules" style="align-self:flex-start;">💾 Save Rules</button>
+      <div id="rulesSavedMsg" style="font-size:12.5px; color:#2f6844; display:none;">✓ Saved — nayi report se ye rules apply hongi.</div>
+    </div>
+  </div>
+
+</main>
+
+<div id="payslipContainer"></div>
+
+<script>
+const SUPABASE_URL = 'https://cqipkbxbrwcskqqltfft.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_xxmJZtPaqVdoZ6OVdsXXLg_KEQcJ5hZ';
+const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+
+async function sbGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
+  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
+  return res.json();
+}
+async function sbPost(table, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
+  return res.json();
+}
+async function sbPatch(table, id, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: 'PATCH', headers, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
+}
+async function sbDelete(table, id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: 'DELETE', headers });
+  if (!res.ok) throw new Error((await res.json()).message || res.statusText);
+}
+async function sbRpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers, body: JSON.stringify(args) });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || res.statusText);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+function showError(msg) {
+  const bar = document.getElementById('errorBar');
+  bar.style.display = 'block';
+  bar.textContent = '⚠ ' + msg;
+}
+function clearError() { document.getElementById('errorBar').style.display = 'none'; }
+
+// ---- Tabs ----
+document.getElementById('navTabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-tab]');
+  if (!btn) return;
+  document.querySelectorAll('#navTabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+});
+
+let employeesCache = [];
+let reportCache = [];
+let holidaysCache = [];
+let leavesCache = [];
+
+// ---- Employees ----
+async function loadEmployees() {
+  try {
+    employeesCache = await sbGet('employees?active=eq.true&order=full_name.asc');
+    const list = document.getElementById('employeesList');
+    list.innerHTML = employeesCache.map((e, i) => `
+      <div style="${i > 0 ? 'border-top:1px solid #efe9dc;' : ''}">
+        <div class="list-row" style="border-top:none;">
+          <div class="mono muted" style="width:60px;">#${e.machine_user_id}</div>
+          <div style="flex:1; font-weight:600;">${e.full_name}</div>
+          <div class="muted" style="width:120px;">${e.department || ''}</div>
+          <div class="mono muted" style="width:110px;">Rs. ${Number(e.monthly_salary).toLocaleString()}</div>
+          ${e.custom_start_time ? `<div class="mono" style="width:120px; color:#a6650a; font-size:11.5px;">⏰ ${e.custom_start_time.slice(0,5)}–${(e.custom_end_time||'').slice(0,5)}</div>` : `<div style="width:120px;"></div>`}
+          <button class="btn btn-light no-print" style="height:26px; padding:3px 8px; font-size:11px;" onclick="toggleTimingEdit('${e.id}')">⏰ Timing</button>
+          <button class="del-btn no-print" onclick="removeEmployee('${e.id}')">🗑</button>
+        </div>
+        <div id="timing-edit-${e.id}" class="no-print" style="display:none; padding:10px 16px; background:#faf8f3;">
+          <div class="row-flex" style="align-items:flex-end;">
+            <div><label>Custom Start</label><input type="time" id="timingStart-${e.id}" value="${e.custom_start_time ? e.custom_start_time.slice(0,5) : ''}"></div>
+            <div><label>Custom End</label><input type="time" id="timingEnd-${e.id}" value="${e.custom_end_time ? e.custom_end_time.slice(0,5) : ''}"></div>
+            <button class="btn btn-dark" style="height:34px;" onclick="saveTiming('${e.id}')">Save</button>
+            <button class="btn btn-light" style="height:34px;" onclick="clearTiming('${e.id}')">Clear (Default pe wapas)</button>
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; cursor:pointer;">
+            <input type="checkbox" id="timingRecompute-${e.id}">
+            Purani dates bhi is nayi timing se dobara calculate karo (agar purana data bhi is timing se theek karna ho)
+          </label>
+          <div id="timingRecomputeStatus-${e.id}" style="font-size:12px; color:#78716a; margin-top:4px;"></div>
+        </div>
+      </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi employee nahi.</div>';
+
+    const sel = document.getElementById('leaveEmp');
+    sel.innerHTML = '<option value="">Select</option>' + employeesCache.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+
+    const logSel = document.getElementById('logEmp');
+    logSel.innerHTML = '<option value="">Sab Employees</option>' + employeesCache.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+
+    const waiverSel = document.getElementById('waiverEmp');
+    waiverSel.innerHTML = '<option value="">Select</option>' + employeesCache.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+
+    renderEmpFilter();
+  } catch (e) { showError(e.message); }
+}
+async function removeEmployee(id) {
+  try { await sbPatch('employees', id, { active: false }); loadEmployees(); } catch (e) { showError(e.message); }
+}
+function toggleTimingEdit(id) {
+  const el = document.getElementById(`timing-edit-${id}`);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+async function saveTiming(id) {
+  const start = document.getElementById(`timingStart-${id}`).value;
+  const end = document.getElementById(`timingEnd-${id}`).value;
+  const shouldRecompute = document.getElementById(`timingRecompute-${id}`).checked;
+  const statusEl = document.getElementById(`timingRecomputeStatus-${id}`);
+  try {
+    clearError();
+    await sbPatch('employees', id, { custom_start_time: start || null, custom_end_time: end || null });
+    if (shouldRecompute) {
+      statusEl.textContent = 'Purani dates dhoondi ja rahi hain...';
+      const rows = await sbGet(`daily_attendance?employee_id=eq.${id}&select=attendance_date`);
+      const dates = [...new Set(rows.map(r => r.attendance_date))];
+      for (let i = 0; i < dates.length; i++) {
+        statusEl.textContent = `Dobara calculate ho raha hai: ${i + 1} / ${dates.length} (${dates[i]})`;
+        await sbRpc('compute_daily_attendance', { target_date: dates[i] });
+      }
+      statusEl.textContent = `✓ ${dates.length} purani dates dobara calculate ho gayi.`;
+      setTimeout(loadEmployees, 1500);
+    } else {
+      loadEmployees();
+    }
+  } catch (e) { showError(e.message); }
+}
+async function clearTiming(id) {
+  try {
+    clearError();
+    await sbPatch('employees', id, { custom_start_time: null, custom_end_time: null });
+    loadEmployees();
+  } catch (e) { showError(e.message); }
+}
+document.getElementById('btnAddEmp').addEventListener('click', async () => {
+  const machine_user_id = document.getElementById('empMachineId').value.trim();
+  const full_name = document.getElementById('empName').value.trim();
+  const department = document.getElementById('empDept').value.trim();
+  const monthly_salary = Number(document.getElementById('empSalary').value) || 0;
+  const custom_start_time = document.getElementById('empCustomStart').value || null;
+  const custom_end_time = document.getElementById('empCustomEnd').value || null;
+  if (!machine_user_id || !full_name) return;
+  try {
+    clearError();
+    await sbPost('employees', { machine_user_id, full_name, department, monthly_salary, custom_start_time, custom_end_time });
+    document.getElementById('empMachineId').value = '';
+    document.getElementById('empName').value = '';
+    document.getElementById('empDept').value = '';
+    document.getElementById('empSalary').value = '';
+    document.getElementById('empCustomStart').value = '';
+    document.getElementById('empCustomEnd').value = '';
+    loadEmployees();
+  } catch (e) { showError(e.message); }
+});
+
+// ---- Holidays ----
+async function loadHolidays() {
+  try {
+    holidaysCache = await sbGet('company_holidays?order=holiday_date.asc');
+    const holidays = holidaysCache;
+    const rowsHtml = holidays.map(h => `
+      <div class="list-row">
+        <div class="mono muted" style="width:120px;">${h.holiday_date}</div>
+        <div style="flex:1; font-weight:600;">${h.description || ''}</div>
+        <button class="del-btn no-print" onclick="removeHoliday('${h.id}')">🗑</button>
+      </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi holiday nahi.</div>';
+    document.getElementById('holidaysList').innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer;" onclick="const d=document.getElementById('holidaysDetail'); d.style.display = d.style.display==='none' ? 'block' : 'none'; this.querySelector('.chev').textContent = this.querySelector('.chev').textContent==='▸' ? '▾' : '▸';">
+        <span style="font-size:13px; font-weight:700; color:#78716a;">${holidays.length} Holiday${holidays.length === 1 ? '' : 's'} set hain — dekhne ke liye tap karein</span>
+        <span class="chev" style="color:#78716a;">▸</span>
+      </div>
+      <div id="holidaysDetail" style="display:none; border-top:1px solid #efe9dc;">${rowsHtml}</div>`;
+    renderReviewBox();
+  } catch (e) { showError(e.message); }
+}
+async function removeHoliday(id) {
+  try {
+    const h = holidaysCache.find(x => x.id === id);
+    await sbDelete('company_holidays', id);
+    if (h) await sbRpc('compute_daily_attendance', { target_date: h.holiday_date });
+    loadHolidays();
+  } catch (e) { showError(e.message); }
+}
+document.getElementById('btnAddHoliday').addEventListener('click', async () => {
+  const holiday_date = document.getElementById('holDate').value;
+  const description = document.getElementById('holDesc').value.trim();
+  if (!holiday_date) return;
+  try {
+    clearError();
+    await sbPost('company_holidays', { holiday_date, description });
+    await sbRpc('compute_daily_attendance', { target_date: holiday_date });
+    document.getElementById('holDate').value = '';
+    document.getElementById('holDesc').value = '';
+    loadHolidays();
+  } catch (e) { showError(e.message); }
+});
+
+// ---- Leaves ----
+async function loadLeaves() {
+  try {
+    leavesCache = await sbGet('employee_leaves?select=*,employees(full_name)&order=leave_date.desc');
+    const leaves = leavesCache;
+    const rowsHtml = leaves.map(l => `
+      <div class="list-row">
+        <div class="mono muted" style="width:120px;">${l.leave_date}</div>
+        <div style="width:140px; font-weight:600;">${l.employees ? l.employees.full_name : ''}</div>
+        <div style="width:80px; font-weight:700; color:${l.paid ? '#2f6844' : '#a13a3a'};">${l.paid ? 'Paid' : 'Unpaid'}</div>
+        <div style="flex:1;" class="muted">${l.reason || ''}</div>
+        <button class="del-btn no-print" onclick="removeLeave('${l.id}')">🗑</button>
+      </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi leave nahi.</div>';
+    document.getElementById('leavesList').innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer;" onclick="const d=document.getElementById('leavesDetail'); d.style.display = d.style.display==='none' ? 'block' : 'none'; this.querySelector('.chev').textContent = this.querySelector('.chev').textContent==='▸' ? '▾' : '▸';">
+        <span style="font-size:13px; font-weight:700; color:#78716a;">${leaves.length} Leave${leaves.length === 1 ? '' : 's'} set hain — dekhne ke liye tap karein</span>
+        <span class="chev" style="color:#78716a;">▸</span>
+      </div>
+      <div id="leavesDetail" style="display:none; border-top:1px solid #efe9dc;">${rowsHtml}</div>`;
+    renderReviewBox();
+  } catch (e) { showError(e.message); }
+}
+async function removeLeave(id) {
+  try {
+    const l = leavesCache.find(x => x.id === id);
+    await sbDelete('employee_leaves', id);
+    if (l) await sbRpc('compute_daily_attendance', { target_date: l.leave_date });
+    loadLeaves();
+  } catch (e) { showError(e.message); }
+}
+document.getElementById('btnAddLeave').addEventListener('click', async () => {
+  const employee_id = document.getElementById('leaveEmp').value;
+  const fromDate = document.getElementById('leaveDateFrom').value;
+  const toDate = document.getElementById('leaveDateTo').value || fromDate;
+  const paid = document.getElementById('leaveType').value === 'paid';
+  const reason = document.getElementById('leaveReason').value.trim();
+  if (!employee_id || !fromDate) return;
+
+  // From-To ke beech ke sab dates nikal ke ek saath insert karein
+  const rows = [];
+  let d = new Date(fromDate + 'T00:00:00');
+  const end = new Date(toDate + 'T00:00:00');
+  while (d <= end) {
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    rows.push({ employee_id, leave_date: dateStr, paid, reason });
+    d.setDate(d.getDate() + 1);
+  }
+
+  try {
+    clearError();
+    await sbPost('employee_leaves', rows);
+    // Har din ko turant dobara calculate karein taake "Absent" turant "Leave" ban jaye
+    for (const row of rows) {
+      await sbRpc('compute_daily_attendance', { target_date: row.leave_date });
+    }
+    document.getElementById('leaveDateFrom').value = '';
+    document.getElementById('leaveDateTo').value = '';
+    document.getElementById('leaveReason').value = '';
+    loadLeaves();
+  } catch (e) { showError(e.message); }
+});
+
+let selectedEmpIds = new Set();
+let seenEmpIds = new Set();
+async function printPayslip(empId, start, end) {
+  const r = reportCache.find(x => x.employee_id === empId);
+  if (!r) return;
+  let data = [];
+  try {
+    data = await sbRpc('compute_employee_breakdown', { emp_id: empId, start_date: start, end_date: end }) || [];
+  } catch (e) { showError(e.message); return; }
+
+  const showReason = document.getElementById('showWaiverReason').checked;
+  const rowsHtml = data.length ? data.map(d => {
+    let note = d.note;
+    if (d.is_waived && showReason && d.waiver_reason) note += ` — Reason: ${d.waiver_reason}`;
+    return `
+    <tr>
+      <td class="mono">${d.attendance_date}</td>
+      <td>${note}</td>
+      <td class="mono" style="text-align:right; color:${Number(d.amount) > 0 ? '#2f6844' : Number(d.amount) < 0 ? '#a13a3a' : '#a89f8f'};">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="3" style="color:#a89f8f;">Is period mein koi late/absent/leave nahi mila — sab kuch normal raha.</td></tr>`;
+
+  const totalDeduction = Number(r.late_deduction) + Number(r.absent_deduction);
+
+  document.getElementById('payslipContainer').innerHTML = `
+    <div class="payslip-page">
+      <div class="payslip-header">
+        <div>
+          <div class="payslip-co">Bright Steel</div>
+          <div class="payslip-sub">Office Attendance &amp; Payroll System</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="payslip-title">SALARY SLIP</div>
+          <div class="payslip-period">${start} to ${end}</div>
+        </div>
+      </div>
+      <div class="payslip-info">
+        <div><span class="muted">Employee Name:</span> <b>${r.employee_name}</b></div>
+        <div><span class="muted">Department:</span> <b>${r.department || ''}</b></div>
+        <div><span class="muted">Monthly Salary:</span> <b class="mono">Rs. ${fmt(r.monthly_salary)}</b></div>
+        <div><span class="muted">Period:</span> <b>${start} – ${end}</b></div>
+      </div>
+      <table class="payslip-table">
+        <thead><tr><th>Attendance Summary</th><th style="text-align:center;">Days</th></tr></thead>
+        <tbody>
+          <tr><td>Present</td><td style="text-align:center; color:#2f6844; font-weight:700;">${r.present_days}</td></tr>
+          <tr><td>Late</td><td style="text-align:center; color:#a6650a; font-weight:700;">${r.total_late_days}</td></tr>
+          <tr><td>Absent</td><td style="text-align:center; color:#a13a3a; font-weight:700;">${r.total_absent_days}</td></tr>
+          <tr><td>Paid Leave</td><td style="text-align:center;">${r.paid_leave_days}</td></tr>
+          <tr><td>Unpaid Leave</td><td style="text-align:center;">${r.unpaid_leave_days}</td></tr>
+        </tbody>
+      </table>
+      <table class="payslip-table">
+        <thead><tr><th>Date</th><th>Reason</th><th style="text-align:right;">Amount</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="payslip-summary">
+        <table>
+          <tr><td>Base Salary</td><td class="mono" style="text-align:right;">Rs. ${fmt(r.monthly_salary)}</td></tr>
+          <tr><td>Overtime</td><td class="mono" style="text-align:right; color:#2f6844;">+ Rs. ${fmt(r.overtime_pay)}</td></tr>
+          <tr><td>Deductions</td><td class="mono" style="text-align:right; color:#a13a3a;">- Rs. ${fmt(totalDeduction)}</td></tr>
+          <tr class="final-row"><td>Final Payable Salary</td><td class="mono" style="text-align:right;">Rs. ${fmt(r.final_salary)}</td></tr>
+        </table>
+      </div>
+      <div class="payslip-footer">
+        <div class="sig-line">Employee Signature</div>
+        <div class="sig-line">Authorized Signature</div>
+      </div>
+    </div>`;
+
+  const pageStyle = document.createElement('style');
+  pageStyle.id = 'payslipPageStyle';
+  pageStyle.textContent = '@page { size: A4 portrait; margin: 15mm; }';
+  document.head.appendChild(pageStyle);
+  document.body.classList.add('payslip-mode');
+
+  function cleanup() {
+    document.body.classList.remove('payslip-mode');
+    const s = document.getElementById('payslipPageStyle');
+    if (s) s.remove();
+    document.getElementById('payslipContainer').innerHTML = '';
+    window.removeEventListener('afterprint', cleanup);
+  }
+  window.addEventListener('afterprint', cleanup);
+
+  window.print();
+}
+
+const breakdownDataCache = {}; // empId -> raw breakdown rows (for re-render on waiver-reason toggle)
+
+function renderBreakdownRows(data) {
+  const showReason = document.getElementById('showWaiverReason').checked;
+  if (!data || data.length === 0) {
+    return '<span class="muted" style="font-size:12.5px;">Is range mein koi late/absent/overtime/leave nahi mila — sab kuch normal present raha.</span>';
+  }
+  return `<div style="font-size:12.5px; font-weight:700; color:#78716a; margin-bottom:6px;">Din-ba-din wajah:</div>` +
+    data.map(d => {
+      let note = d.note;
+      if (d.is_waived && showReason && d.waiver_reason) note += ` — Reason: ${d.waiver_reason}`;
+      return `
+      <div style="display:flex; align-items:center; gap:10px; padding:5px 0; border-top:1px solid #e2ddd2;">
+        <span class="mono" style="width:95px; color:#78716a;">${d.attendance_date}</span>
+        <span style="flex:1;">${note}</span>
+        <span class="mono" style="font-weight:700; width:90px; text-align:right; color:${Number(d.amount) > 0 ? '#2f6844' : Number(d.amount) < 0 ? '#a13a3a' : '#a89f8f'};">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</span>
+      </div>`;
+    }).join('');
+}
+
+async function loadBreakdownContent(empId, start, end) {
+  const content = document.getElementById(`breakdown-content-${empId}`);
+  if (content.dataset.loaded === `${start}|${end}`) {
+    content.innerHTML = renderBreakdownRows(breakdownDataCache[empId]); // waiver-toggle ke hisaab se dobara render
+    return breakdownDataCache[empId];
+  }
+  content.innerHTML = '<span class="muted" style="font-size:12.5px;">Loading...</span>';
+  try {
+    const data = await sbRpc('compute_employee_breakdown', { emp_id: empId, start_date: start, end_date: end });
+    breakdownDataCache[empId] = data;
+    content.innerHTML = renderBreakdownRows(data);
+    content.dataset.loaded = `${start}|${end}`;
+    return data;
+  } catch (e) {
+    content.innerHTML = `<span style="color:#a13a3a; font-size:12.5px;">Error: ${e.message}</span>`;
+  }
+}
+document.getElementById('showWaiverReason').addEventListener('change', () => {
+  // Jo bhi breakdown abhi khule hain, unhe naye toggle ke hisaab se dobara render karein
+  Object.keys(breakdownDataCache).forEach(empId => {
+    const content = document.getElementById(`breakdown-content-${empId}`);
+    if (content) content.innerHTML = renderBreakdownRows(breakdownDataCache[empId]);
+  });
+});
+
+async function toggleBreakdown(empId, start, end) {
+  const row = document.getElementById(`breakdown-${empId}`);
+  if (row.style.display === 'table-row') {
+    row.style.display = 'none';
+    return;
+  }
+  row.style.display = 'table-row';
+  await loadBreakdownContent(empId, start, end);
+}
+
+function renderEmpFilter() {
+  const list = document.getElementById('empFilterList');
+  // Sirf pehli baar dekhe gaye (naye) employees ko default select karein —
+  // pehle se dekhe hue employees ki selection (chahe ON ho ya OFF) untouched rahegi
+  employeesCache.forEach(e => {
+    if (!seenEmpIds.has(e.id)) {
+      selectedEmpIds.add(e.id);
+      seenEmpIds.add(e.id);
+    }
+  });
+  list.innerHTML = employeesCache.map(e => `
+    <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; background:#efe9dc; padding:5px 10px; border-radius:6px; cursor:pointer;">
+      <input type="checkbox" data-emp-id="${e.id}" ${selectedEmpIds.has(e.id) ? 'checked' : ''} onchange="toggleEmpFilter('${e.id}', this.checked)">
+      ${e.full_name}
+    </label>`).join('');
+}
+function toggleEmpFilter(id, checked) {
+  if (checked) selectedEmpIds.add(id); else selectedEmpIds.delete(id);
+  renderReport(document.getElementById('startDate').value, document.getElementById('endDate').value);
+}
+document.getElementById('btnSelectAllEmp').addEventListener('click', () => {
+  employeesCache.forEach(e => selectedEmpIds.add(e.id));
+  renderEmpFilter();
+  renderReport(document.getElementById('startDate').value, document.getElementById('endDate').value);
+});
+document.getElementById('btnSelectNoneEmp').addEventListener('click', () => {
+  selectedEmpIds.clear();
+  renderEmpFilter();
+  renderReport(document.getElementById('startDate').value, document.getElementById('endDate').value);
+});
+
+// ---- Report ----
+function fmt(n) { return Number(n || 0).toLocaleString(); }
+
+async function loadReport() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  document.getElementById('btnGetReport').textContent = '↻ Loading...';
+  try {
+    clearError();
+    reportCache = await sbRpc('compute_range_payroll', { start_date: startDate, end_date: endDate });
+    renderReport(startDate, endDate);
+  } catch (e) { showError(e.message); }
+  document.getElementById('btnGetReport').textContent = '↻ Get Report';
+}
+
+function renderReport(start, end) {
+  const filtered = reportCache.filter(r => selectedEmpIds.has(r.employee_id));
+  document.getElementById('reportMeta').textContent = `${start} se ${end} tak — ${filtered.length} employees (${reportCache.length} mein se select kiye)`;
+
+  const table = document.getElementById('reportTable');
+  table.querySelectorAll('tbody.emp-group').forEach(tb => tb.remove());
+  const totalsBody = document.getElementById('totalsBody');
+
+  filtered.forEach(r => {
+    const tbody = document.createElement('tbody');
+    tbody.className = 'emp-group'; // print mein ye poora group kabhi split nahi hoga
+    tbody.innerHTML = `
+      <tr>
+        <td style="font-weight:600;">${r.employee_name}</td>
+        <td class="muted">${r.department || ''}</td>
+        <td class="mono" style="text-align:right;">${fmt(r.monthly_salary)}</td>
+        <td style="text-align:center; color:#2f6844; font-weight:700;">${r.present_days}</td>
+        <td style="text-align:center; color:#a6650a; font-weight:700;">${r.total_late_days}</td>
+        <td style="text-align:center; color:#a13a3a; font-weight:700;">${r.total_absent_days}</td>
+        <td style="text-align:center;">${r.paid_leave_days}</td>
+        <td style="text-align:center;">${r.unpaid_leave_days}</td>
+        <td style="text-align:center; font-weight:700; color:${r.single_punch_days > 0 ? '#c23b3b' : '#a89f8f'};">${r.single_punch_days || '—'}</td>
+        <td class="mono" style="text-align:right; color:#2f6844; font-weight:600;">+${fmt(r.overtime_pay)}</td>
+        <td class="mono" style="text-align:right; color:#a13a3a; font-weight:600;">-${fmt(Number(r.late_deduction) + Number(r.absent_deduction))}</td>
+        <td class="mono" style="text-align:right; font-weight:700; color:${Number(r.net_adjustment) >= 0 ? '#2f6844' : '#a13a3a'};">${Number(r.net_adjustment) >= 0 ? '+' : ''}${fmt(r.net_adjustment)}</td>
+        <td class="mono" style="text-align:right; font-weight:700;">Rs. ${fmt(r.final_salary)}</td>
+        <td class="no-print" style="text-align:center; white-space:nowrap;">
+          <button class="btn btn-light" style="height:26px; padding:3px 8px; font-size:11px;" onclick="toggleBreakdown('${r.employee_id}', '${start}', '${end}')">🔍</button>
+          <button class="btn btn-light" style="height:26px; padding:3px 8px; font-size:11px;" onclick="printPayslip('${r.employee_id}', '${start}', '${end}')">🖨</button>
+        </td>
+      </tr>
+      <tr id="breakdown-${r.employee_id}" style="display:none;">
+        <td colspan="14" style="padding:0;"><div id="breakdown-content-${r.employee_id}" style="padding:12px 16px; background:#faf8f3;"></div></td>
+      </tr>`;
+    table.insertBefore(tbody, totalsBody);
+  });
+
+  const totals = filtered.reduce((acc, r) => {
+    acc.salary += Number(r.monthly_salary) || 0;
+    acc.overtime += Number(r.overtime_pay) || 0;
+    acc.deduction += (Number(r.late_deduction) || 0) + (Number(r.absent_deduction) || 0);
+    acc.final += Number(r.final_salary) || 0;
+    return acc;
+  }, { salary: 0, overtime: 0, deduction: 0, final: 0 });
+
+  document.getElementById('reportTotals').innerHTML = `
+    <td colspan="2">TOTAL</td>
+    <td class="mono" style="text-align:right;">${fmt(totals.salary)}</td>
+    <td colspan="5"></td>
+    <td class="mono" style="text-align:right; color:#2f6844;">+${fmt(totals.overtime)}</td>
+    <td class="mono" style="text-align:right; color:#a13a3a;">-${fmt(totals.deduction)}</td>
+    <td></td>
+    <td class="mono" style="text-align:right;">Rs. ${fmt(totals.final)}</td>`;
+}
+
+function renderReviewBox() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  if (!startDate || !endDate) return;
+
+  const holsInRange = holidaysCache.filter(h => h.holiday_date >= startDate && h.holiday_date <= endDate);
+  const leavesInRange = leavesCache.filter(l => l.leave_date >= startDate && l.leave_date <= endDate);
+
+  const box = document.getElementById('reviewBox');
+  if (holsInRange.length === 0 && leavesInRange.length === 0) {
+    box.innerHTML = `<div class="card" style="padding:12px 16px; font-size:12.5px; color:#a6650a; background:#fbeed9; border-color:#f0dcb8;">
+      ⚠ Is date range mein koi Holiday ya Leave set nahi hai. Agar is beech koi chutti/holiday thi, report ghalat calculate hogi — pehle "Holidays &amp; Leaves" tab mein add kar lein.
+    </div>`;
+    return;
+  }
+
+  let detailHtml = '';
+  holsInRange.forEach(h => {
+    detailHtml += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12.5px; border-top:1px solid #efe9dc;">
+      <span class="mono muted" style="width:100px;">${h.holiday_date}</span>
+      <span style="flex:1;">🏢 Holiday: ${h.description || '(no description)'}</span>
+      <button class="del-btn" onclick="removeHoliday('${h.id}')">🗑</button>
+    </div>`;
+  });
+  leavesInRange.forEach(l => {
+    const empName = l.employees ? l.employees.full_name : (employeesCache.find(e => e.id === l.employee_id)?.full_name || '');
+    detailHtml += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12.5px; border-top:1px solid #efe9dc;">
+      <span class="mono muted" style="width:100px;">${l.leave_date}</span>
+      <span style="flex:1;">👤 ${empName} — <span style="color:${l.paid ? '#2f6844' : '#a13a3a'}; font-weight:700;">${l.paid ? 'Paid' : 'Unpaid'}</span> Leave</span>
+      <button class="del-btn" onclick="removeLeave('${l.id}')">🗑</button>
+    </div>`;
+  });
+
+  box.innerHTML = `<div class="card" style="padding:12px 16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="document.getElementById('reviewDetails').style.display = document.getElementById('reviewDetails').style.display==='none' ? 'block' : 'none'; this.querySelector('.chev').textContent = this.querySelector('.chev').textContent==='▸' ? '▾' : '▸';">
+      <span style="font-size:12.5px; font-weight:700; color:#78716a;">✓ Is range mein ${holsInRange.length} Holiday, ${leavesInRange.length} Leave set hain — check karne ke liye tap karein</span>
+      <span class="chev" style="color:#78716a;">▸</span>
+    </div>
+    <div id="reviewDetails" style="display:none; margin-top:6px;">${detailHtml}</div>
+  </div>`;
+}
+document.getElementById('startDate').addEventListener('change', renderReviewBox);
+document.getElementById('endDate').addEventListener('change', renderReviewBox);
+
+document.getElementById('btnGetReport').addEventListener('click', loadReport);
+
+document.getElementById('btnExportCSV').addEventListener('click', () => {
+  const rows = [['Employee','Department','Salary','Present','Late','Absent','Paid Leave','Unpaid Leave','Single Punch','Overtime','Late Ded.','Absent Ded.','Net','Final Salary']];
+  reportCache.filter(r => selectedEmpIds.has(r.employee_id)).forEach(r => rows.push([r.employee_name, r.department, r.monthly_salary, r.present_days, r.total_late_days, r.total_absent_days, r.paid_leave_days, r.unpaid_leave_days, r.single_punch_days, r.overtime_pay, r.late_deduction, r.absent_deduction, r.net_adjustment, r.final_salary]));
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `payroll-${document.getElementById('startDate').value}-to-${document.getElementById('endDate').value}.csv`;
+  a.click();
+});
+let selectedDetailEmpIds = new Set();
+function renderPrintDetailEmpList() {
+  const filtered = reportCache.filter(r => selectedEmpIds.has(r.employee_id));
+  if (selectedDetailEmpIds.size === 0) {
+    filtered.forEach(r => selectedDetailEmpIds.add(r.employee_id));
+  }
+  const list = document.getElementById('printDetailEmpList');
+  list.innerHTML = filtered.map(r => `
+    <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; background:#efe9dc; padding:5px 10px; border-radius:6px; cursor:pointer;">
+      <input type="checkbox" ${selectedDetailEmpIds.has(r.employee_id) ? 'checked' : ''} onchange="toggleDetailEmp('${r.employee_id}', this.checked)">
+      ${r.employee_name}
+    </label>`).join('');
+}
+function toggleDetailEmp(id, checked) {
+  if (checked) selectedDetailEmpIds.add(id); else selectedDetailEmpIds.delete(id);
+}
+document.getElementById('printModeDetail').addEventListener('change', () => {
+  document.getElementById('printDetailEmpBox').style.display = 'block';
+  renderPrintDetailEmpList();
+});
+document.getElementById('printModeSummary').addEventListener('change', () => {
+  document.getElementById('printDetailEmpBox').style.display = 'none';
+});
+
+document.getElementById('btnPrint').addEventListener('click', async () => {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  const detailMode = document.getElementById('printModeDetail').checked;
+  const btn = document.getElementById('btnPrint');
+
+  // Pehle sab breakdown rows hide kar dein (clean state)
+  document.querySelectorAll('tr[id^="breakdown-"]').forEach(row => row.style.display = 'none');
+
+  if (detailMode) {
+    const toShow = reportCache.filter(r => selectedEmpIds.has(r.employee_id) && selectedDetailEmpIds.has(r.employee_id));
+    btn.textContent = '🖨 Preparing...';
+    await Promise.all(toShow.map(async (r) => {
+      const row = document.getElementById(`breakdown-${r.employee_id}`);
+      if (row) row.style.display = 'table-row';
+      await loadBreakdownContent(r.employee_id, start, end);
+    }));
+    btn.textContent = '🖨 Print';
+  }
+  window.print();
+});
+
+// ---- Late Waivers ----
+async function loadWaivers() {
+  try {
+    const waivers = await sbGet('late_waivers?select=*,employees(full_name)&order=waiver_date.desc');
+    document.getElementById('waiversList').innerHTML = waivers.map(w => `
+      <div class="list-row">
+        <div class="mono muted" style="width:120px;">${w.waiver_date}</div>
+        <div style="width:140px; font-weight:600;">${w.employees ? w.employees.full_name : ''}</div>
+        <div style="flex:1;" class="muted">${w.reason || ''}</div>
+        <button class="del-btn no-print" onclick="removeWaiver('${w.id}')">🗑</button>
+      </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi waiver nahi.</div>';
+  } catch (e) { showError(e.message); }
+}
+async function removeWaiver(id) {
+  try { await sbDelete('late_waivers', id); loadWaivers(); } catch (e) { showError(e.message); }
+}
+document.getElementById('btnAddWaiver').addEventListener('click', async () => {
+  const employee_id = document.getElementById('waiverEmp').value;
+  const waiver_date = document.getElementById('waiverDate').value;
+  const reason = document.getElementById('waiverReason').value.trim();
+  if (!employee_id || !waiver_date) return;
+  try {
+    clearError();
+    await sbPost('late_waivers', { employee_id, waiver_date, reason });
+    document.getElementById('waiverDate').value = '';
+    document.getElementById('waiverReason').value = '';
+    loadWaivers();
+  } catch (e) { showError(e.message); }
+});
+
+// ---- Attendance Log ----
+let logCache = [];
+async function loadLog() {
+  const empId = document.getElementById('logEmp').value;
+  const start = document.getElementById('logStart').value;
+  const end = document.getElementById('logEnd').value;
+  if (!start || !end) return;
+  document.getElementById('btnLoadLog').textContent = '↻ Loading...';
+  try {
+    clearError();
+    let path = `daily_attendance?select=*,employees(full_name)&attendance_date=gte.${start}&attendance_date=lte.${end}&order=attendance_date.desc`;
+    if (empId) path += `&employee_id=eq.${empId}`;
+    logCache = await sbGet(path);
+    renderLog(start, end);
+  } catch (e) { showError(e.message); }
+  document.getElementById('btnLoadLog').textContent = '↻ Load';
+}
+function renderLog(start, end) {
+  document.getElementById('logMeta').textContent = `${start} se ${end} tak — ${logCache.length} records`;
+  const statusColor = { present: '#2f6844', late: '#a6650a', absent: '#a13a3a', leave_paid: '#2f6844', leave_unpaid: '#a13a3a' };
+  const statusLabel = { present: 'Present', late: 'Late', absent: 'Absent', leave_paid: 'Paid Leave', leave_unpaid: 'Unpaid Leave' };
+  document.getElementById('logBody').innerHTML = logCache.map(d => `
+    <tr>
+      <td class="mono">${d.attendance_date}</td>
+      <td style="font-weight:600;">${d.employees ? d.employees.full_name : ''}</td>
+      <td class="mono">${d.first_punch ? new Date(d.first_punch).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' }) : '--'}</td>
+      <td class="mono">${(d.last_punch && !d.single_punch) ? new Date(d.last_punch).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' }) : '--'}</td>
+      <td style="text-align:center; font-weight:700; color:${statusColor[d.status] || '#78716a'};">${statusLabel[d.status] || d.status}${d.single_punch ? ' ⚠' : ''}</td>
+      <td style="text-align:center;">${d.minutes_late || 0}</td>
+      <td class="mono" style="text-align:right;">${d.total_hours || '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="7" style="padding:16px; color:#a89f8f;">Koi record nahi.</td></tr>';
+}
+document.getElementById('btnLoadLog').addEventListener('click', loadLog);
+document.getElementById('btnExportLog').addEventListener('click', () => {
+  const rows = [['Date', 'Employee', 'Check-in', 'Check-out', 'Status', 'Late (min)', 'Hours']];
+  logCache.forEach(d => rows.push([
+    d.attendance_date, d.employees ? d.employees.full_name : '',
+    d.first_punch || '', (d.single_punch ? '' : (d.last_punch || '')), d.status, d.minutes_late || 0, d.total_hours || ''
+  ]));
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendance-log-${document.getElementById('logStart').value}-to-${document.getElementById('logEnd').value}.csv`;
+  a.click();
+});
+
+// ---- Attendance Rules (editable) ----
+async function loadRules() {
+  try {
+    const rows = await sbGet('attendance_rules?id=eq.1');
+    const r = rows[0];
+    if (!r) return;
+    document.getElementById('rOfficeStart').value = r.office_start_time.slice(0, 5);
+    document.getElementById('rOfficeEnd').value = r.office_end_time.slice(0, 5);
+    document.getElementById('rGrace').value = r.late_grace_minutes;
+    document.getElementById('rFreeLate').value = r.free_late_count;
+    document.getElementById('rFreeAbsent').value = r.free_absent_count;
+    document.getElementById('rOvertimeAfter').value = r.overtime_after_minutes;
+    document.getElementById('rTotalMinutes').value = r.total_working_minutes_month;
+    document.getElementById('rFullDayMinutes').value = r.full_day_minutes;
+    document.getElementById('rWeeklyOff').value = r.weekly_off_day;
+    document.getElementById('rOfficeLat').value = r.office_lat || '';
+    document.getElementById('rOfficeLng').value = r.office_lng || '';
+    document.getElementById('rOfficeRadius').value = r.office_radius_meters || 200;
+  } catch (e) { showError(e.message); }
+}
+document.getElementById('btnSaveRules').addEventListener('click', async () => {
+  const body = {
+    office_start_time: document.getElementById('rOfficeStart').value,
+    office_end_time: document.getElementById('rOfficeEnd').value,
+    late_grace_minutes: Number(document.getElementById('rGrace').value),
+    free_late_count: Number(document.getElementById('rFreeLate').value),
+    free_absent_count: Number(document.getElementById('rFreeAbsent').value),
+    overtime_after_minutes: Number(document.getElementById('rOvertimeAfter').value),
+    total_working_minutes_month: Number(document.getElementById('rTotalMinutes').value),
+    full_day_minutes: Number(document.getElementById('rFullDayMinutes').value),
+    weekly_off_day: Number(document.getElementById('rWeeklyOff').value),
+    office_lat: document.getElementById('rOfficeLat').value ? Number(document.getElementById('rOfficeLat').value) : null,
+    office_lng: document.getElementById('rOfficeLng').value ? Number(document.getElementById('rOfficeLng').value) : null,
+    office_radius_meters: Number(document.getElementById('rOfficeRadius').value) || 200,
+  };
+  try {
+    clearError();
+    await sbPatch('attendance_rules', 1, body);
+    const msg = document.getElementById('rulesSavedMsg');
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+  } catch (e) { showError(e.message); }
+});
+
+// ---- Field Duty ----
+async function loadFieldDuty() {
+  try {
+    const rows = await sbGet('field_checkins?select=*,employees(full_name)&order=checkin_time.desc&limit=100');
+    const pending = rows.filter(r => r.status === 'pending');
+    const badge = document.getElementById('pendingBadge');
+    if (pending.length > 0) {
+      badge.style.display = 'inline-block';
+      badge.textContent = pending.length;
+    } else {
+      badge.style.display = 'none';
+    }
+
+    const statusColor = { pending: '#a6650a', approved: '#2f6844', rejected: '#a13a3a' };
+    document.getElementById('fieldDutyList').innerHTML = rows.map(r => {
+      const dur = (r.checkin_time && r.checkout_time) ? Math.round((new Date(r.checkout_time) - new Date(r.checkin_time)) / 60000) : null;
+      const dateForRecompute = (r.checkin_time || r.checkout_time || '').slice(0, 10);
+      return `
+      <div class="card" style="padding:14px 16px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div style="font-weight:700;">${r.employees ? r.employees.full_name : ''}
+              ${r.near_office ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;"> ⚠ Office ke pass</span>' : ''}
+              ${r.checkin_missing ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;"> ⚠ Check-in Missing</span>' : ''}
+            </div>
+            <div class="mono muted" style="font-size:12px; margin-top:2px;">
+              In: ${r.checkin_time ? new Date(r.checkin_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'}
+              ${r.checkout_time ? ' → Out: ' + new Date(r.checkout_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) + (dur !== null ? ` (${dur} min)` : '') : ' — abhi field mein hain'}
+            </div>
+            <div style="font-size:12.5px; margin-top:4px; color:#78716a;">📍 ${r.checkin_address || '—'}</div>
+            ${r.note ? `<div style="font-size:12.5px; margin-top:2px;">📝 ${r.note}</div>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700; color:${statusColor[r.status]}; text-transform:uppercase; font-size:11.5px;">${r.status}</div>
+            ${r.status === 'pending' ? `
+              <div style="margin-top:6px; display:flex; gap:6px;">
+                <button class="btn btn-dark" style="height:30px; padding:4px 10px; font-size:12px;" onclick="approveFieldDuty('${r.id}', '${dateForRecompute}')">✓ Approve</button>
+                <button class="btn btn-light" style="height:30px; padding:4px 10px; font-size:12px;" onclick="rejectFieldDuty('${r.id}')">✗ Reject</button>
+              </div>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('') || '<div class="card" style="padding:16px; color:#a89f8f; font-size:13px;">Koi field duty check-in nahi.</div>';
+  } catch (e) { showError(e.message); }
+}
+async function approveFieldDuty(id, date) {
+  try {
+    clearError();
+    await sbPatch('field_checkins', id, { status: 'approved' });
+    await sbRpc('compute_daily_attendance', { target_date: date });
+    loadFieldDuty();
+  } catch (e) { showError(e.message); }
+}
+async function rejectFieldDuty(id) {
+  try {
+    clearError();
+    await sbPatch('field_checkins', id, { status: 'rejected' });
+    loadFieldDuty();
+  } catch (e) { showError(e.message); }
+}
+
+
+// ---- Init ----
+function todayISO() {
+  // Hamesha Pakistan (Asia/Karachi) ki date use karein, chahe viewer kisi bhi timezone mein ho
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const get = (t) => parts.find(p => p.type === t).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+function firstOfMonthISO() {
+  const today = todayISO();
+  return `${today.slice(0, 7)}-01`;
+}
+document.getElementById('startDate').value = firstOfMonthISO();
+document.getElementById('endDate').value = todayISO();
+document.getElementById('logStart').value = firstOfMonthISO();
+document.getElementById('logEnd').value = todayISO();
+
+loadEmployees();
+loadHolidays();
+loadLeaves();
+loadWaivers();
+loadReport();
+renderReviewBox();
+loadLog();
+loadRules();
+loadFieldDuty();
+</script>
+
+</body>
+</html>
