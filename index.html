@@ -1053,6 +1053,11 @@ async function loadFieldDuty() {
     document.getElementById('fieldDutyList').innerHTML = rows.map(r => {
       const dur = (r.checkin_time && r.checkout_time) ? Math.round((new Date(r.checkout_time) - new Date(r.checkin_time)) / 60000) : null;
       const dateForRecompute = (r.checkin_time || r.checkout_time || '').slice(0, 10);
+      const lowAccuracy = (r.checkin_accuracy && r.checkin_accuracy > 100) || (r.checkout_accuracy && r.checkout_accuracy > 100);
+      const mapsLink = r.checkin_lat && r.checkin_lng ? `https://www.google.com/maps?q=${r.checkin_lat},${r.checkin_lng}` : null;
+      const distTxt = (r.checkin_distance_m !== null && r.checkin_distance_m !== undefined)
+        ? (r.checkin_distance_m < 1000 ? `${r.checkin_distance_m} m` : `${(r.checkin_distance_m/1000).toFixed(1)} km`) + ' office se'
+        : null;
       return `
       <div class="card" style="padding:14px 16px; margin-bottom:10px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
@@ -1060,12 +1065,16 @@ async function loadFieldDuty() {
             <div style="font-weight:700;">${r.employees ? r.employees.full_name : ''}
               ${r.near_office ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;"> ⚠ Office ke pass</span>' : ''}
               ${r.checkin_missing ? '<span style="color:#c23b3b; font-size:11px; font-weight:700;"> ⚠ Check-in Missing</span>' : ''}
+              ${lowAccuracy ? '<span style="color:#a6650a; font-size:11px; font-weight:700;"> ⚠ Location kam bharosemand (weak GPS)</span>' : ''}
             </div>
             <div class="mono muted" style="font-size:12px; margin-top:2px;">
               In: ${r.checkin_time ? new Date(r.checkin_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'}
               ${r.checkout_time ? ' → Out: ' + new Date(r.checkout_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) + (dur !== null ? ` (${dur} min)` : '') : ' — abhi field mein hain'}
             </div>
-            <div style="font-size:12.5px; margin-top:4px; color:#78716a;">📍 ${r.checkin_address || '—'}</div>
+            <div style="font-size:12.5px; margin-top:4px; color:#78716a;">
+              📍 ${r.checkin_address || '—'} ${distTxt ? `<span style="color:#a89f8f;">(${distTxt})</span>` : ''}
+              ${mapsLink ? `<a href="${mapsLink}" target="_blank" style="color:#2f6844; font-weight:600; margin-left:6px;">🗺 Map par dekhein</a>` : ''}
+            </div>
             ${r.note ? `<div style="font-size:12.5px; margin-top:2px;">📝 ${r.note}</div>` : ''}
           </div>
           <div style="text-align:right;">

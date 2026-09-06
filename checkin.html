@@ -236,7 +236,7 @@ function getLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) { reject(new Error('Ye browser location support nahi karta')); return; }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       (err) => reject(new Error('Location allow karna zaroori hai. (' + err.message + ')')),
       { enableHighAccuracy: true, timeout: 15000 }
     );
@@ -283,6 +283,10 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
   try {
     const loc = await getLocation();
     const isCheckout = activeRecord && !activeRecord.checkout_time;
+    const rules = await getOfficeRules();
+    const distFromOffice = (rules && rules.office_lat && rules.office_lng)
+      ? Math.round(haversineMeters(loc.lat, loc.lng, rules.office_lat, rules.office_lng))
+      : null;
 
     if (isCheckout) {
       showStatus('Check-out ho raha hai...', 'loading');
@@ -290,6 +294,8 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_time: new Date().toISOString(),
         checkout_lat: loc.lat,
         checkout_lng: loc.lng,
+        checkout_accuracy: loc.accuracy,
+        checkout_distance_m: distFromOffice,
       });
       showStatus('✓ Check-out ho gaya! Shukriya.', 'success');
       btn.textContent = 'Mukammal ho gaya';
@@ -302,6 +308,8 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_time: new Date().toISOString(),
         checkout_lat: loc.lat,
         checkout_lng: loc.lng,
+        checkout_accuracy: loc.accuracy,
+        checkout_distance_m: distFromOffice,
         note: document.getElementById('noteInput').value.trim() || 'Machine se check-in, field se check-out',
         status: 'pending',
         checkin_missing: false,
@@ -312,12 +320,10 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
     } else if (mode === 'checkin') {
       showStatus('Address dhoondi ja rahi hai...', 'loading');
       const address = await reverseGeocode(loc.lat, loc.lng);
-      const rules = await getOfficeRules();
 
       let nearOffice = false;
-      if (rules && rules.office_lat && rules.office_lng) {
-        const dist = haversineMeters(loc.lat, loc.lng, rules.office_lat, rules.office_lng);
-        nearOffice = dist <= (rules.office_radius_meters || 200);
+      if (distFromOffice !== null) {
+        nearOffice = distFromOffice <= (rules.office_radius_meters || 200);
       }
 
       showStatus('Check-in save ho raha hai...', 'loading');
@@ -327,6 +333,8 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkin_lat: loc.lat,
         checkin_lng: loc.lng,
         checkin_address: address,
+        checkin_accuracy: loc.accuracy,
+        checkin_distance_m: distFromOffice,
         note: document.getElementById('noteInput').value.trim(),
         status: 'pending',
         near_office: nearOffice,
@@ -347,6 +355,8 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_time: new Date().toISOString(),
         checkout_lat: loc.lat,
         checkout_lng: loc.lng,
+        checkout_accuracy: loc.accuracy,
+        checkout_distance_m: distFromOffice,
         note: document.getElementById('noteInput').value.trim(),
         status: 'pending',
         checkin_missing: true,
