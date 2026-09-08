@@ -417,6 +417,12 @@
       <div><label>Office Latitude</label><input type="number" step="any" id="rOfficeLat" placeholder="jaise 24.8607"></div>
       <div><label>Office Longitude</label><input type="number" step="any" id="rOfficeLng" placeholder="jaise 67.0011"></div>
       <div><label>Radius (meters) — is se andar Field Duty check-in "near office" flag hoga</label><input type="number" id="rOfficeRadius"></div>
+      <div style="border-top:1px solid #efe9dc; padding-top:10px;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:700; cursor:pointer;">
+          <input type="checkbox" id="rPhotoMandatory">
+          Photo Mandatory (Check-in aur Check-out dono ke waqt photo lena zaroori hoga)
+        </label>
+      </div>
       <button class="btn btn-dark" id="btnSaveRules" style="align-self:flex-start;"><i data-lucide="save"></i> Save Rules</button>
       <div id="rulesSavedMsg" style="font-size:12.5px; color:#2f6844; display:none;">✓ Saved — nayi report se ye rules apply hongi.</div>
     </div>
@@ -1221,6 +1227,7 @@ async function loadRules() {
     document.getElementById('rOfficeLat').value = r.office_lat || '';
     document.getElementById('rOfficeLng').value = r.office_lng || '';
     document.getElementById('rOfficeRadius').value = r.office_radius_meters || 200;
+    document.getElementById('rPhotoMandatory').checked = !!r.photo_mandatory;
   } catch (e) { showError(e.message); }
 }
 document.getElementById('btnSaveRules').addEventListener('click', async () => {
@@ -1237,6 +1244,7 @@ document.getElementById('btnSaveRules').addEventListener('click', async () => {
     office_lat: document.getElementById('rOfficeLat').value ? Number(document.getElementById('rOfficeLat').value) : null,
     office_lng: document.getElementById('rOfficeLng').value ? Number(document.getElementById('rOfficeLng').value) : null,
     office_radius_meters: Number(document.getElementById('rOfficeRadius').value) || 200,
+    photo_mandatory: document.getElementById('rPhotoMandatory').checked,
   };
   try {
     clearError();
@@ -1283,10 +1291,20 @@ async function loadFieldDuty() {
               ${r.checkout_time ? ' → Out: ' + new Date(r.checkout_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) + (dur !== null ? ` (${dur} min)` : '') : ' — abhi field mein hain'}
             </div>
             <div style="font-size:12.5px; margin-top:4px; color:#78716a;">
-              📍 ${r.checkin_address || '—'} ${distTxt ? `<span style="color:#a89f8f;">(${distTxt})</span>` : ''}
-              ${mapsLink ? `<a href="${mapsLink}" target="_blank" style="color:#2f6844; font-weight:600; margin-left:6px;">🗺 Map par dekhein</a>` : ''}
+              📍 In: ${r.checkin_address || (r.checkin_time ? '—' : 'N/A')} ${distTxt ? `<span style="color:#a89f8f;">(${distTxt})</span>` : ''}
+              ${mapsLink ? `<a href="${mapsLink}" target="_blank" style="color:#2f6844; font-weight:600; margin-left:6px;">🗺 Map</a>` : ''}
             </div>
+            ${r.checkout_address ? `
+            <div style="font-size:12.5px; margin-top:2px; color:#78716a;">
+              📍 Out: ${r.checkout_address}
+              ${r.checkout_lat ? `<a href="https://www.google.com/maps?q=${r.checkout_lat},${r.checkout_lng}" target="_blank" style="color:#2f6844; font-weight:600; margin-left:6px;">🗺 Map</a>` : ''}
+            </div>` : ''}
             ${r.note ? `<div style="font-size:12.5px; margin-top:2px;">📝 ${r.note}</div>` : ''}
+            ${(r.checkin_photo_url || r.checkout_photo_url) ? `
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              ${r.checkin_photo_url ? `<a href="${r.checkin_photo_url}" target="_blank"><img src="${r.checkin_photo_url}" style="width:70px; height:70px; object-fit:cover; border-radius:6px; border:1px solid #d7dce0;" title="Check-in Photo"></a>` : ''}
+              ${r.checkout_photo_url ? `<a href="${r.checkout_photo_url}" target="_blank"><img src="${r.checkout_photo_url}" style="width:70px; height:70px; object-fit:cover; border-radius:6px; border:1px solid #d7dce0;" title="Check-out Photo"></a>` : ''}
+            </div>` : ''}
           </div>
           <div style="text-align:right;">
             <div style="font-weight:700; color:${statusColor[r.status]}; text-transform:uppercase; font-size:11.5px;">${r.status}</div>

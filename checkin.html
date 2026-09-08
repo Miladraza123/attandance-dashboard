@@ -293,6 +293,9 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       ? Math.round(haversineMeters(loc.lat, loc.lng, rules.office_lat, rules.office_lng))
       : null;
 
+    showStatus('Address dhoondi ja rahi hai...', 'loading');
+    const checkoutAddress = (isCheckout || machineCheckedInState || mode === 'checkout') ? await reverseGeocode(loc.lat, loc.lng) : null;
+
     if (isCheckout) {
       showStatus('Check-out ho raha hai...', 'loading');
       await sbPatch('field_checkins', activeRecord.id, {
@@ -301,6 +304,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_lng: loc.lng,
         checkout_accuracy: loc.accuracy,
         checkout_distance_m: distFromOffice,
+        checkout_address: checkoutAddress,
       });
       showStatus('✓ Check-out ho gaya! Shukriya.', 'success');
       btn.textContent = 'Mukammal ho gaya';
@@ -315,6 +319,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_lng: loc.lng,
         checkout_accuracy: loc.accuracy,
         checkout_distance_m: distFromOffice,
+        checkout_address: checkoutAddress,
         note: document.getElementById('noteInput').value.trim() || 'Machine se check-in, field se check-out',
         status: 'pending',
         checkin_missing: false,
@@ -323,7 +328,6 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       btn.disabled = true;
       btn.textContent = 'Mukammal ho gaya';
     } else if (mode === 'checkin') {
-      showStatus('Address dhoondi ja rahi hai...', 'loading');
       const address = await reverseGeocode(loc.lat, loc.lng);
 
       let nearOffice = false;
@@ -362,6 +366,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_lng: loc.lng,
         checkout_accuracy: loc.accuracy,
         checkout_distance_m: distFromOffice,
+        checkout_address: checkoutAddress,
         note: document.getElementById('noteInput').value.trim(),
         status: 'pending',
         checkin_missing: true,

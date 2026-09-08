@@ -39,6 +39,13 @@
   <label id="noteLabel" style="display:none;">Wajah / Note (optional)</label>
   <textarea id="noteInput" placeholder="jaise: Customer XYZ ko delivery" style="display:none;"></textarea>
 
+  <div id="photoSection" style="display:none; margin-bottom:16px;">
+    <label>Photo (zaroori)</label>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+    <button type="button" class="btn" id="takePhotoBtn" style="width:100%; padding:12px; border-radius:8px; border:1px solid #d8d2c4; background:#fff; font-weight:700; cursor:pointer; font-family:inherit; font-size:14px;">📷 Photo Khinchein</button>
+    <img id="photoPreview" style="display:none; margin-top:8px; width:100%; border-radius:8px; max-height:220px; object-fit:cover;">
+  </div>
+
   <button class="btn btn-in" id="actionBtn" disabled>Pehle naam select karein</button>
 
   <div id="statusMsg" class="status"></div>
@@ -74,6 +81,8 @@ async function sbPatch(table, id, body) {
 let employees = [];
 let activeRecord = null; // aaj/raat ka open (non-rejected) record, agar hai
 let machineCheckedInState = false;
+let cachedRules = null;
+let capturedPhotoFile = null;
 
 function showStatus(msg, type) {
   const el = document.getElementById('statusMsg');
@@ -109,6 +118,31 @@ function currentMode() {
   return 'blocked';
 }
 
+document.getElementById('takePhotoBtn').addEventListener('click', () => {
+  document.getElementById('photoInput').click();
+});
+document.getElementById('photoInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  capturedPhotoFile = file;
+  const preview = document.getElementById('photoPreview');
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  document.getElementById('takePhotoBtn').textContent = '📷 Dobara Photo Khinchein';
+});
+
+async function uploadPhoto(file, empId) {
+  const ext = (file.type && file.type.split('/')[1]) || 'jpg';
+  const filename = `${empId}_${Date.now()}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/field-duty-photos/${filename}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': file.type || 'image/jpeg' },
+    body: file,
+  });
+  if (!res.ok) throw new Error('Photo upload fail ho gaya: ' + (await res.text()));
+  return `${SUPABASE_URL}/storage/v1/object/public/field-duty-photos/${filename}`;
+}
+
 async function init() {
   try {
     const offRows = await sbGet(`offices?name=eq.${encodeURIComponent(OFFICE_NAME)}&select=id`);
@@ -117,6 +151,7 @@ async function init() {
     employees = await sbGet(`employees?active=eq.true&office_id=eq.${OFFICE_ID}&order=full_name.asc`);
     const sel = document.getElementById('empSelect');
     sel.innerHTML = '<option value="">-- Select --</option>' + employees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+    cachedRules = await getOfficeRules();
   } catch (e) {
     showStatus('Load error: ' + e.message, 'error');
   }
@@ -150,8 +185,14 @@ document.getElementById('empSelect').addEventListener('change', async (e) => {
     statusBox.style.display = 'none';
     noteLabel.style.display = 'none';
     noteInput.style.display = 'none';
+    document.getElementById('photoSection').style.display = 'none';
     return;
   }
+
+  // Naya naam select hote hi photo reset karein
+  capturedPhotoFile = null;
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('takePhotoBtn').textContent = '📷 Photo Khinchein';
 
   btn.disabled = true;
   btn.textContent = 'Loading...';
@@ -231,6 +272,10 @@ document.getElementById('empSelect').addEventListener('change', async (e) => {
       noteLabel.style.display = 'block';
       noteInput.style.display = 'block';
     }
+
+    // Photo section: sirf tab dikhayen jab koi action possible ho aur Photo Mandatory ON ho
+    const photoSection = document.getElementById('photoSection');
+    photoSection.style.display = (!btn.disabled && cachedRules && cachedRules.photo_mandatory) ? 'block' : 'none';
   } catch (err) {
     showStatus('Error: ' + err.message, 'error');
     btn.disabled = true;
@@ -282,6 +327,11 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
   const mode = currentMode();
   if (mode === 'blocked') { showStatus('Abhi punch window nahi hai.', 'error'); return; }
 
+  if (cachedRules && cachedRules.photo_mandatory && !capturedPhotoFile) {
+    showStatus('❌ Photo lena zaroori hai — "Photo Khinchein" dabayen.', 'error');
+    return;
+  }
+
   btn.disabled = true;
   showStatus('📍 Location le rahe hain...', 'loading');
 
@@ -293,6 +343,15 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       ? Math.round(haversineMeters(loc.lat, loc.lng, rules.office_lat, rules.office_lng))
       : null;
 
+    let photoUrl = null;
+    if (capturedPhotoFile) {
+      showStatus('📷 Photo upload ho rahi hai...', 'loading');
+      photoUrl = await uploadPhoto(capturedPhotoFile, empId);
+    }
+
+    showStatus('Address dhoondi ja rahi hai...', 'loading');
+    const checkoutAddress = (isCheckout || machineCheckedInState || mode === 'checkout') ? await reverseGeocode(loc.lat, loc.lng) : null;
+
     if (isCheckout) {
       showStatus('Check-out ho raha hai...', 'loading');
       await sbPatch('field_checkins', activeRecord.id, {
@@ -301,6 +360,8 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_lng: loc.lng,
         checkout_accuracy: loc.accuracy,
         checkout_distance_m: distFromOffice,
+        checkout_address: checkoutAddress,
+        checkout_photo_url: photoUrl,
       });
       showStatus('✓ Check-out ho gaya! Shukriya.', 'success');
       btn.textContent = 'Mukammal ho gaya';
@@ -315,6 +376,8 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_lng: loc.lng,
         checkout_accuracy: loc.accuracy,
         checkout_distance_m: distFromOffice,
+        checkout_address: checkoutAddress,
+        checkout_photo_url: photoUrl,
         note: document.getElementById('noteInput').value.trim() || 'Machine se check-in, field se check-out',
         status: 'pending',
         checkin_missing: false,
@@ -323,7 +386,6 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       btn.disabled = true;
       btn.textContent = 'Mukammal ho gaya';
     } else if (mode === 'checkin') {
-      showStatus('Address dhoondi ja rahi hai...', 'loading');
       const address = await reverseGeocode(loc.lat, loc.lng);
 
       let nearOffice = false;
@@ -340,6 +402,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkin_address: address,
         checkin_accuracy: loc.accuracy,
         checkin_distance_m: distFromOffice,
+        checkin_photo_url: photoUrl,
         note: document.getElementById('noteInput').value.trim(),
         status: 'pending',
         near_office: nearOffice,
@@ -351,6 +414,11 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       btn.disabled = false;
       document.getElementById('noteLabel').style.display = 'none';
       document.getElementById('noteInput').style.display = 'none';
+      // Agla step Check-out hoga — photo dobara lena hogi (agar mandatory hai)
+      capturedPhotoFile = null;
+      document.getElementById('photoPreview').style.display = 'none';
+      document.getElementById('takePhotoBtn').textContent = '📷 Photo Khinchein';
+      document.getElementById('photoSection').style.display = (cachedRules && cachedRules.photo_mandatory) ? 'block' : 'none';
     } else {
       // Checkout without prior check-in — checkin_missing record
       showStatus('Check-out save ho raha hai...', 'loading');
@@ -362,6 +430,8 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
         checkout_lng: loc.lng,
         checkout_accuracy: loc.accuracy,
         checkout_distance_m: distFromOffice,
+        checkout_address: checkoutAddress,
+        checkout_photo_url: photoUrl,
         note: document.getElementById('noteInput').value.trim(),
         status: 'pending',
         checkin_missing: true,

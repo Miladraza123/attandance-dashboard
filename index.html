@@ -1283,9 +1283,14 @@ async function loadFieldDuty() {
               ${r.checkout_time ? ' → Out: ' + new Date(r.checkout_time).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) + (dur !== null ? ` (${dur} min)` : '') : ' — abhi field mein hain'}
             </div>
             <div style="font-size:12.5px; margin-top:4px; color:#78716a;">
-              📍 ${r.checkin_address || '—'} ${distTxt ? `<span style="color:#a89f8f;">(${distTxt})</span>` : ''}
-              ${mapsLink ? `<a href="${mapsLink}" target="_blank" style="color:#2f6844; font-weight:600; margin-left:6px;">🗺 Map par dekhein</a>` : ''}
+              📍 In: ${r.checkin_address || (r.checkin_time ? '—' : 'N/A')} ${distTxt ? `<span style="color:#a89f8f;">(${distTxt})</span>` : ''}
+              ${mapsLink ? `<a href="${mapsLink}" target="_blank" style="color:#2f6844; font-weight:600; margin-left:6px;">🗺 Map</a>` : ''}
             </div>
+            ${r.checkout_address ? `
+            <div style="font-size:12.5px; margin-top:2px; color:#78716a;">
+              📍 Out: ${r.checkout_address}
+              ${r.checkout_lat ? `<a href="https://www.google.com/maps?q=${r.checkout_lat},${r.checkout_lng}" target="_blank" style="color:#2f6844; font-weight:600; margin-left:6px;">🗺 Map</a>` : ''}
+            </div>` : ''}
             ${r.note ? `<div style="font-size:12.5px; margin-top:2px;">📝 ${r.note}</div>` : ''}
           </div>
           <div style="text-align:right;">
