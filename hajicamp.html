@@ -125,14 +125,14 @@
     body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     main { max-width: none !important; padding: 0 !important; }
     .card { border: none !important; overflow: visible !important; box-shadow: none !important; }
-    #printHeader { display: block !important; margin-bottom: 8px; }
+    #printHeader { display: block !important; margin-bottom: 10px; }
     table { width: 100% !important; table-layout: fixed; border-collapse: collapse; font-size: 14px !important; }
-    th, td { padding: 5px 7px !important; white-space: normal !important; word-wrap: break-word; border: 1px solid #999 !important; font-weight: 600 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    th { font-weight: 700 !important; color: #000 !important; }
-    thead tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th, td { padding: 5px 7px !important; white-space: normal !important; word-wrap: break-word; border: 1px solid #d7dce0 !important; font-weight: 600 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { font-weight: 700 !important; color: #1c2128 !important; }
+    thead tr { background: #fdf6e3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     tbody.emp-group tr:first-child { background: #fff; }
-    #totalsBody tr { background: #d8d2c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .muted { color: #333 !important; }
+    #totalsBody tr { background: #eef1f2 !important; border-top: 2px solid #1c2128 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .muted { color: #5b6673 !important; }
     #reportMeta { display: none; }
     tbody.emp-group tr[id^="breakdown-"] > td > div { padding: 6px 10px !important; }
     tbody.emp-group tr[id^="breakdown-"] > td > div > div { padding: 2px 0 !important; font-size: 11px !important; }
@@ -142,26 +142,39 @@
 
   /* ===== Individual Payslip ===== */
   #payslipContainer { display: none; }
-  .payslip-page { font-family: 'IBM Plex Sans', sans-serif; color: #1c2128; }
-  .payslip-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 3px solid #1c2128; padding-bottom: 14px; margin-bottom: 18px; }
-  .payslip-co { font-size: 20px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+  .payslip-page { font-family: 'IBM Plex Sans', sans-serif; color: var(--ink); background: #fff; }
+  .payslip-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom: 12px; }
+  .payslip-header-divider { height: 3px; background: var(--ink); position: relative; margin-bottom: 20px; }
+  .payslip-header-divider::after { content: ''; position: absolute; left: 0; top: 0; height: 3px; width: 70px; background: var(--gold); }
+  .payslip-co { font-size: 21px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
   .payslip-sub { font-size: 11px; color: var(--muted); margin-top:2px; }
-  .payslip-title { font-size: 16px; font-weight: 700; color: var(--muted); }
-  .payslip-period { font-size: 12px; margin-top: 4px; }
-  .payslip-info { display:grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; margin-bottom: 20px; font-size: 12.5px; }
-  .payslip-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 12.5px; }
-  .payslip-table th, .payslip-table td { padding: 7px 9px; text-align: left; border-bottom: 1px solid var(--border-soft); }
-  .payslip-table thead tr { background: #f4f6f7; }
-  .payslip-summary { display:flex; justify-content: flex-end; margin-bottom: 20px; }
-  .payslip-summary table { width: 300px; font-size: 12.5px; }
-  .payslip-summary td { padding: 5px 9px; }
-  .payslip-summary .final-row td { border-top: 2px solid #1c2128; font-weight: 700; font-size: 14px; padding-top: 9px; }
-  .payslip-footer { display:flex; justify-content: space-between; margin-top: 40px; font-size: 11px; color: var(--muted); }
-  .sig-line { border-top: 1px solid #999; width: 160px; text-align:center; padding-top: 5px; }
+  .payslip-title { font-size: 16px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px; }
+  .payslip-period { font-size: 12px; margin-top: 4px; color: var(--ink); font-weight: 600; }
+  .payslip-info { display:grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; margin-bottom: 22px; font-size: 12.5px; }
+  .payslip-info-item { display: flex; align-items: center; gap: 8px; }
+  .payslip-info-item svg { width: 15px; height: 15px; stroke: var(--muted); flex-shrink: 0; }
+  .payslip-info-item .lbl { color: var(--muted); }
+  .payslip-info-item .val { font-weight: 700; color: var(--ink); margin-left: auto; }
+  .payslip-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .payslip-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12.5px; border: 1px solid var(--border); }
+  .payslip-table th, .payslip-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-soft); }
+  .payslip-table th { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.2px; }
+  .payslip-table thead tr { background: #fdf6e3; }
+  .payslip-table tbody tr:last-child td { border-bottom: none; }
+  .payslip-summary-wrap { display:flex; justify-content: flex-end; margin-bottom: 24px; }
+  .payslip-summary { width: 320px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .payslip-summary-row { display: flex; justify-content: space-between; padding: 9px 14px; font-size: 12.5px; border-bottom: 1px solid var(--border-soft); }
+  .payslip-summary-row.final { background: var(--gold-soft); border-top: 2px solid var(--gold); border-bottom: none; font-weight: 700; font-size: 15px; padding: 13px 14px; }
+  .payslip-footer-block { display:flex; justify-content: space-between; margin-top: 46px; page-break-inside: avoid; }
+  .sig-line { border-top: 1.5px solid var(--ink); width: 170px; text-align:center; padding-top: 6px; font-size: 11.5px; color: var(--muted); }
+  .payslip-doc-footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--border-soft); display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted-soft); }
 
   @media print {
     body.payslip-mode > *:not(#payslipContainer) { display: none !important; }
     body.payslip-mode #payslipContainer { display: block !important; }
+    body.payslip-mode .payslip-page { padding: 0 !important; }
+    body.payslip-mode .payslip-table thead { display: table-header-group; }
+    body.payslip-mode .payslip-table tr { break-inside: avoid; page-break-inside: avoid; }
   }
 
   @media (max-width: 900px) {
@@ -221,6 +234,15 @@
 
   <!-- REPORT TAB -->
   <div id="tab-report" class="tab-content active">
+    <div id="printHeader">
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #1c2128; padding-bottom: 8px;">
+        <div>
+          <div style="font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700;"><span id="printHeaderOffice"></span> — Payroll Report</div>
+          <div style="font-size:11px; color:#5b6673; margin-top:2px;" id="printHeaderPeriod"></div>
+        </div>
+        <div style="font-size:10px; color:#8a929c;" id="printHeaderGenerated"></div>
+      </div>
+    </div>
     <div class="row-flex no-print" style="margin-bottom:16px;">
       <div><label>From</label><input type="date" id="startDate"></div>
       <div><label>To</label><input type="date" id="endDate"></div>
@@ -530,9 +552,9 @@ async function loadEmployees() {
           <div style="flex:1; font-weight:600;">${e.full_name}</div>
           <div class="muted" style="width:120px;">${e.department || ''}</div>
           <div class="mono muted" style="width:110px;">Rs. ${Number(e.monthly_salary).toLocaleString()}</div>
-          ${e.custom_start_time ? `<div class="mono" style="width:120px; color:#a6650a; font-size:11.5px;">⏰ ${e.custom_start_time.slice(0,5)}–${(e.custom_end_time||'').slice(0,5)}</div>` : `<div style="width:120px;"></div>`}
-          <button class="btn btn-light no-print" style="height:26px; padding:3px 8px; font-size:11px;" onclick="toggleTimingEdit('${e.id}')">⏰ Timing</button>
-          <button class="del-btn no-print" onclick="removeEmployee('${e.id}')">🗑</button>
+          ${e.custom_start_time ? `<div class="mono" style="width:120px; color:#e8890c; font-size:11.5px;">⏰ ${e.custom_start_time.slice(0,5)}–${(e.custom_end_time||'').slice(0,5)}</div>` : `<div style="width:120px;"></div>`}
+          <button class="btn btn-light no-print" style="height:26px; padding:3px 8px; font-size:11px;" onclick="toggleTimingEdit('${e.id}')"><i data-lucide="clock"></i> Timing</button>
+          <button class="del-btn no-print" onclick="removeEmployee('${e.id}')"><i data-lucide="trash"></i></button>
         </div>
         <div id="timing-edit-${e.id}" class="no-print" style="display:none; padding:10px 16px; background:#faf8f3;">
           <div class="row-flex" style="align-items:flex-end;">
@@ -559,6 +581,7 @@ async function loadEmployees() {
     waiverSel.innerHTML = '<option value="">Select</option>' + employeesCache.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
 
     renderEmpFilter();
+    renderIcons();
   } catch (e) { showError(e.message); }
 }
 async function removeEmployee(id) {
@@ -628,7 +651,7 @@ async function loadHolidays() {
       <div class="list-row">
         <div class="mono muted" style="width:120px;">${h.holiday_date}</div>
         <div style="flex:1; font-weight:600;">${h.description || ''}</div>
-        <button class="del-btn no-print" onclick="removeHoliday('${h.id}')">🗑</button>
+        <button class="del-btn no-print" onclick="removeHoliday('${h.id}')"><i data-lucide="trash"></i></button>
       </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi holiday nahi.</div>';
     document.getElementById('holidaysList').innerHTML = `
       <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer;" onclick="const d=document.getElementById('holidaysDetail'); d.style.display = d.style.display==='none' ? 'block' : 'none'; this.querySelector('.chev').textContent = this.querySelector('.chev').textContent==='▸' ? '▾' : '▸';">
@@ -637,6 +660,7 @@ async function loadHolidays() {
       </div>
       <div id="holidaysDetail" style="display:none; border-top:1px solid #efe9dc;">${rowsHtml}</div>`;
     renderReviewBox();
+    renderIcons();
   } catch (e) { showError(e.message); }
 }
 async function removeHoliday(id) {
@@ -670,9 +694,9 @@ async function loadLeaves() {
       <div class="list-row">
         <div class="mono muted" style="width:120px;">${l.leave_date}</div>
         <div style="width:140px; font-weight:600;">${l.employees ? l.employees.full_name : ''}</div>
-        <div style="width:80px; font-weight:700; color:${l.paid ? '#2f6844' : '#a13a3a'};">${l.paid ? 'Paid' : 'Unpaid'}</div>
+        <div style="width:80px; font-weight:700; color:${l.paid ? '#2f9e44' : '#d64545'};">${l.paid ? 'Paid' : 'Unpaid'}</div>
         <div style="flex:1;" class="muted">${l.reason || ''}</div>
-        <button class="del-btn no-print" onclick="removeLeave('${l.id}')">🗑</button>
+        <button class="del-btn no-print" onclick="removeLeave('${l.id}')"><i data-lucide="trash"></i></button>
       </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi leave nahi.</div>';
     document.getElementById('leavesList').innerHTML = `
       <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer;" onclick="const d=document.getElementById('leavesDetail'); d.style.display = d.style.display==='none' ? 'block' : 'none'; this.querySelector('.chev').textContent = this.querySelector('.chev').textContent==='▸' ? '▾' : '▸';">
@@ -681,6 +705,7 @@ async function loadLeaves() {
       </div>
       <div id="leavesDetail" style="display:none; border-top:1px solid #efe9dc;">${rowsHtml}</div>`;
     renderReviewBox();
+    renderIcons();
   } catch (e) { showError(e.message); }
 }
 async function removeLeave(id) {
@@ -740,18 +765,22 @@ async function printPayslip(empId, start, end) {
     return `
     <tr>
       <td class="mono">${d.attendance_date}</td>
-      <td>${note}</td>
-      <td class="mono" style="text-align:right; color:${Number(d.amount) > 0 ? '#2f6844' : Number(d.amount) < 0 ? '#a13a3a' : '#a89f8f'};">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</td>
+      <td style="max-width:280px; white-space:normal;">${note}</td>
+      <td class="mono" style="text-align:right; color:${Number(d.amount) > 0 ? '#2f9e44' : Number(d.amount) < 0 ? '#d64545' : '#8a929c'}; font-weight:600;">${Number(d.amount) > 0 ? '+' : ''}${d.amount == 0 ? '—' : fmt(d.amount)}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="3" style="color:#a89f8f;">Is period mein koi late/absent/leave nahi mila — sab kuch normal raha.</td></tr>`;
+  }).join('') : `<tr><td colspan="3" style="color:#8a929c;">Is period mein koi late/absent/leave nahi mila — sab kuch normal raha.</td></tr>`;
 
   const totalDeduction = Number(r.late_deduction) + Number(r.absent_deduction);
+  const icoUser = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.3"/><path d="M5 20c0-3.3 3.1-5.6 7-5.6s7 2.3 7 5.6"/></svg>';
+  const icoBriefcase = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="1.5"/><path d="M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/></svg>';
+  const icoCash = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.8"/></svg>';
+  const icoCal = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
 
   document.getElementById('payslipContainer').innerHTML = `
     <div class="payslip-page">
       <div class="payslip-header">
         <div>
-          <div class="payslip-co">Bright Steel</div>
+          <div class="payslip-co">${OFFICE_NAME}</div>
           <div class="payslip-sub">Office Attendance &amp; Payroll System</div>
         </div>
         <div style="text-align:right;">
@@ -759,37 +788,50 @@ async function printPayslip(empId, start, end) {
           <div class="payslip-period">${start} to ${end}</div>
         </div>
       </div>
+      <div class="payslip-header-divider"></div>
+
       <div class="payslip-info">
-        <div><span class="muted">Employee Name:</span> <b>${r.employee_name}</b></div>
-        <div><span class="muted">Department:</span> <b>${r.department || ''}</b></div>
-        <div><span class="muted">Monthly Salary:</span> <b class="mono">Rs. ${fmt(r.monthly_salary)}</b></div>
-        <div><span class="muted">Period:</span> <b>${start} – ${end}</b></div>
+        <div class="payslip-info-item">${icoUser}<span class="lbl">Employee Name</span><span class="val">${r.employee_name}</span></div>
+        <div class="payslip-info-item">${icoBriefcase}<span class="lbl">Department</span><span class="val">${r.department || '—'}</span></div>
+        <div class="payslip-info-item">${icoCash}<span class="lbl">Monthly Salary</span><span class="val mono">Rs. ${fmt(r.monthly_salary)}</span></div>
+        <div class="payslip-info-item">${icoCal}<span class="lbl">Salary Period</span><span class="val">${start} – ${end}</span></div>
       </div>
+
+      <div class="payslip-section-title">Attendance Summary</div>
       <table class="payslip-table">
-        <thead><tr><th>Attendance Summary</th><th style="text-align:center;">Days</th></tr></thead>
+        <thead><tr><th>Status</th><th style="text-align:center;">Days</th></tr></thead>
         <tbody>
-          <tr><td>Present</td><td style="text-align:center; color:#2f6844; font-weight:700;">${r.present_days}</td></tr>
-          <tr><td>Late</td><td style="text-align:center; color:#a6650a; font-weight:700;">${r.total_late_days}</td></tr>
-          <tr><td>Absent</td><td style="text-align:center; color:#a13a3a; font-weight:700;">${r.total_absent_days}</td></tr>
-          <tr><td>Paid Leave</td><td style="text-align:center;">${r.paid_leave_days}</td></tr>
-          <tr><td>Unpaid Leave</td><td style="text-align:center;">${r.unpaid_leave_days}</td></tr>
+          <tr><td>Present</td><td style="text-align:center; color:#2f9e44; font-weight:700;">${r.present_days}</td></tr>
+          <tr><td>Late</td><td style="text-align:center; color:#e8890c; font-weight:700;">${r.total_late_days}</td></tr>
+          <tr><td>Absent</td><td style="text-align:center; color:#d64545; font-weight:700;">${r.total_absent_days}</td></tr>
+          <tr><td>Paid Leave</td><td style="text-align:center; color:var(--ink);">${r.paid_leave_days}</td></tr>
+          <tr><td>Unpaid Leave</td><td style="text-align:center; color:var(--ink);">${r.unpaid_leave_days}</td></tr>
         </tbody>
       </table>
+
+      <div class="payslip-section-title">Deduction / Adjustment Detail</div>
       <table class="payslip-table">
         <thead><tr><th>Date</th><th>Reason</th><th style="text-align:right;">Amount</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
-      <div class="payslip-summary">
-        <table>
-          <tr><td>Base Salary</td><td class="mono" style="text-align:right;">Rs. ${fmt(r.monthly_salary)}</td></tr>
-          <tr><td>Overtime</td><td class="mono" style="text-align:right; color:#2f6844;">+ Rs. ${fmt(r.overtime_pay)}</td></tr>
-          <tr><td>Deductions</td><td class="mono" style="text-align:right; color:#a13a3a;">- Rs. ${fmt(totalDeduction)}</td></tr>
-          <tr class="final-row"><td>Final Payable Salary</td><td class="mono" style="text-align:right;">Rs. ${fmt(r.final_salary)}</td></tr>
-        </table>
+
+      <div class="payslip-summary-wrap">
+        <div class="payslip-summary">
+          <div class="payslip-summary-row"><span>Base Salary</span><span class="mono">Rs. ${fmt(r.monthly_salary)}</span></div>
+          <div class="payslip-summary-row"><span>Overtime</span><span class="mono" style="color:#2f9e44;">+ Rs. ${fmt(r.overtime_pay)}</span></div>
+          <div class="payslip-summary-row"><span>Deductions</span><span class="mono" style="color:#d64545;">- Rs. ${fmt(totalDeduction)}</span></div>
+          <div class="payslip-summary-row final"><span>Final Payable Salary</span><span class="mono">Rs. ${fmt(r.final_salary)}</span></div>
+        </div>
       </div>
-      <div class="payslip-footer">
+
+      <div class="payslip-footer-block">
         <div class="sig-line">Employee Signature</div>
         <div class="sig-line">Authorized Signature</div>
+      </div>
+
+      <div class="payslip-doc-footer">
+        <span>${OFFICE_NAME} — Office Attendance &amp; Payroll System</span>
+        <span>Secure &nbsp;|&nbsp; Reliable &nbsp;|&nbsp; Efficient</span>
       </div>
     </div>`;
 
@@ -915,6 +957,9 @@ async function loadReport() {
 function renderReport(start, end) {
   const filtered = reportCache.filter(r => selectedEmpIds.has(r.employee_id));
   document.getElementById('reportMeta').textContent = `${start} se ${end} tak — ${filtered.length} employees (${reportCache.length} mein se select kiye)`;
+  document.getElementById('printHeaderOffice').textContent = OFFICE_NAME;
+  document.getElementById('printHeaderPeriod').textContent = `Period: ${start} to ${end}`;
+  document.getElementById('printHeaderGenerated').textContent = `Generated: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}`;
 
   const table = document.getElementById('reportTable');
   table.querySelectorAll('tbody.emp-group').forEach(tb => tb.remove());
@@ -989,7 +1034,7 @@ function renderReviewBox() {
     detailHtml += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12.5px; border-top:1px solid #efe9dc;">
       <span class="mono muted" style="width:100px;">${h.holiday_date}</span>
       <span style="flex:1;">🏢 Holiday: ${h.description || '(no description)'}</span>
-      <button class="del-btn" onclick="removeHoliday('${h.id}')">🗑</button>
+      <button class="del-btn" onclick="removeHoliday('${h.id}')"><i data-lucide="trash"></i></button>
     </div>`;
   });
   leavesInRange.forEach(l => {
@@ -997,7 +1042,7 @@ function renderReviewBox() {
     detailHtml += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12.5px; border-top:1px solid #efe9dc;">
       <span class="mono muted" style="width:100px;">${l.leave_date}</span>
       <span style="flex:1;">👤 ${empName} — <span style="color:${l.paid ? '#2f6844' : '#a13a3a'}; font-weight:700;">${l.paid ? 'Paid' : 'Unpaid'}</span> Leave</span>
-      <button class="del-btn" onclick="removeLeave('${l.id}')">🗑</button>
+      <button class="del-btn" onclick="removeLeave('${l.id}')"><i data-lucide="trash"></i></button>
     </div>`;
   });
 
@@ -1008,6 +1053,7 @@ function renderReviewBox() {
     </div>
     <div id="reviewDetails" style="display:none; margin-top:6px;">${detailHtml}</div>
   </div>`;
+  renderIcons();
 }
 document.getElementById('startDate').addEventListener('change', renderReviewBox);
 document.getElementById('endDate').addEventListener('change', renderReviewBox);
@@ -1075,13 +1121,20 @@ document.getElementById('btnPrint').addEventListener('click', async () => {
 async function loadWaivers() {
   try {
     const waivers = await sbGet(`late_waivers?select=*,employees!inner(full_name,office_id)&employees.office_id=eq.${OFFICE_ID}&order=waiver_date.desc`);
-    document.getElementById('waiversList').innerHTML = waivers.map(w => `
+    const rowsHtml = waivers.map(w => `
       <div class="list-row">
         <div class="mono muted" style="width:120px;">${w.waiver_date}</div>
         <div style="width:140px; font-weight:600;">${w.employees ? w.employees.full_name : ''}</div>
         <div style="flex:1;" class="muted">${w.reason || ''}</div>
-        <button class="del-btn no-print" onclick="removeWaiver('${w.id}')">🗑</button>
-      </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#a89f8f;">Koi waiver nahi.</div>';
+        <button class="del-btn no-print" onclick="removeWaiver('${w.id}')"><i data-lucide="trash"></i></button>
+      </div>`).join('') || '<div style="padding:16px; font-size:13px; color:#8a929c;">Koi waiver nahi.</div>';
+    document.getElementById('waiversList').innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; cursor:pointer;" onclick="const d=document.getElementById('waiversDetail'); d.style.display = d.style.display==='none' ? 'block' : 'none'; this.querySelector('.chev').textContent = this.querySelector('.chev').textContent==='▸' ? '▾' : '▸';">
+        <span style="font-size:13px; font-weight:700; color:#5b6673;">${waivers.length} Waiver${waivers.length === 1 ? '' : 's'} set hain — dekhne ke liye tap karein</span>
+        <span class="chev" style="color:#5b6673;">▸</span>
+      </div>
+      <div id="waiversDetail" style="display:none; border-top:1px solid var(--border-soft);">${rowsHtml}</div>`;
+    renderIcons();
   } catch (e) { showError(e.message); }
 }
 async function removeWaiver(id) {
