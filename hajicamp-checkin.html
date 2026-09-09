@@ -63,18 +63,30 @@ const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
 // 16:00–02:00 (agle din) => Check-out window (koi upper time-limit nahi, sirf 2 AM tak)
 // 02:00–11:00 => Dead zone, koi punch nahi
 
+// Timeout-protected fetch — agar koi network call 10 second mein jawab na de,
+// khud cancel ho jayegi (page kabhi hamesha ke liye "atak" nahi jayega)
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sbGet(path) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
+  const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
   return res.json();
 }
 async function sbPost(table, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(body) });
+  const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
   return res.json();
 }
 async function sbPatch(table, id, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: 'PATCH', headers, body: JSON.stringify(body) });
+  const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: 'PATCH', headers, body: JSON.stringify(body) });
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
 }
 
@@ -134,11 +146,11 @@ document.getElementById('photoInput').addEventListener('change', (e) => {
 async function uploadPhoto(file, empId) {
   const ext = (file.type && file.type.split('/')[1]) || 'jpg';
   const filename = `${empId}_${Date.now()}.${ext}`;
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/field-duty-photos/${filename}`, {
+  const res = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/field-duty-photos/${filename}`, {
     method: 'POST',
     headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': file.type || 'image/jpeg' },
     body: file,
-  });
+  }, 20000);
   if (!res.ok) throw new Error('Photo upload fail ho gaya: ' + (await res.text()));
   return `${SUPABASE_URL}/storage/v1/object/public/field-duty-photos/${filename}`;
 }
@@ -285,9 +297,27 @@ document.getElementById('empSelect').addEventListener('change', async (e) => {
 function getLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) { reject(new Error('Ye browser location support nahi karta')); return; }
+    let settled = false;
+    // Hamara apna independent timeout — kuch Android phones browser ka internal
+    // timeout follow nahi karte, is liye khud bahar se 20 second ka time-limit lagate hain
+    const hardTimeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Location 20 second mein nahi mili. GPS on hai check karein aur dobara try karein.'));
+    }, 20000);
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-      (err) => reject(new Error('Location allow karna zaroori hai. (' + err.message + ')')),
+      (pos) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(hardTimeout);
+        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(hardTimeout);
+        reject(new Error('Location allow karna zaroori hai. (' + err.message + ')'));
+      },
       { enableHighAccuracy: true, timeout: 15000 }
     );
   });
@@ -295,7 +325,7 @@ function getLocation() {
 
 async function reverseGeocode(lat, lng) {
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`);
+    const res = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`, {}, 8000);
     const data = await res.json();
     return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   } catch {
@@ -317,6 +347,11 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function resetForNextPerson() {
+  document.getElementById('empSelect').value = '';
+  document.getElementById('empSelect').dispatchEvent(new Event('change'));
 }
 
 document.getElementById('actionBtn').addEventListener('click', async () => {
@@ -365,6 +400,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       });
       showStatus('✓ Check-out ho gaya! Shukriya.', 'success');
       btn.textContent = 'Mukammal ho gaya';
+      setTimeout(resetForNextPerson, 2500);
     } else if (machineCheckedInState) {
       // Machine ne pehle se Check-in kar diya hai — sirf Check-out record karein
       showStatus('Check-out save ho raha hai...', 'loading');
@@ -385,6 +421,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       showStatus('✓ Check-out ho gaya! Manager ki approval ka intezar hai.', 'success');
       btn.disabled = true;
       btn.textContent = 'Mukammal ho gaya';
+      setTimeout(resetForNextPerson, 2500);
     } else if (mode === 'checkin') {
       const address = await reverseGeocode(loc.lat, loc.lng);
 
@@ -419,6 +456,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       document.getElementById('photoPreview').style.display = 'none';
       document.getElementById('takePhotoBtn').textContent = '📷 Photo Khinchein';
       document.getElementById('photoSection').style.display = (cachedRules && cachedRules.photo_mandatory) ? 'block' : 'none';
+      setTimeout(resetForNextPerson, 2500);
     } else {
       // Checkout without prior check-in — checkin_missing record
       showStatus('Check-out save ho raha hai...', 'loading');
@@ -439,6 +477,7 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
       showStatus('✓ Check-out ho gaya (Check-in Missing flag ke saath). Manager review karega.', 'success');
       btn.disabled = true;
       btn.textContent = 'Mukammal ho gaya';
+      setTimeout(resetForNextPerson, 2500);
     }
   } catch (e) {
     showStatus('❌ ' + e.message, 'error');
