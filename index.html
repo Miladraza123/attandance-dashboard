@@ -1180,7 +1180,7 @@ function renderLog(start, end) {
       <td class="mono">${d.attendance_date}</td>
       <td style="font-weight:600;">${d.employees ? d.employees.full_name : ''}</td>
       <td class="mono">${d.first_punch ? new Date(d.first_punch).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' }) : '--'}</td>
-      <td class="mono">${(d.last_punch && !d.single_punch) ? new Date(d.last_punch).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' }) : '--'}</td>
+      <td class="mono">${(d.last_punch && d.last_punch !== d.first_punch) ? new Date(d.last_punch).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' }) : '--'}</td>
       <td style="text-align:center; font-weight:700; color:${statusColor[d.status] || '#78716a'};">${statusLabel[d.status] || d.status}${d.single_punch ? ' ⚠' : ''}</td>
       <td style="text-align:center;">${d.minutes_late || 0}</td>
       <td class="mono" style="text-align:right;">${d.total_hours || '—'}</td>
@@ -1191,7 +1191,7 @@ document.getElementById('btnExportLog').addEventListener('click', () => {
   const rows = [['Date', 'Employee', 'Check-in', 'Check-out', 'Status', 'Late (min)', 'Hours']];
   logCache.forEach(d => rows.push([
     d.attendance_date, d.employees ? d.employees.full_name : '',
-    d.first_punch || '', (d.single_punch ? '' : (d.last_punch || '')), d.status, d.minutes_late || 0, d.total_hours || ''
+    d.first_punch || '', ((d.last_punch && d.last_punch !== d.first_punch) ? d.last_punch : ''), d.status, d.minutes_late || 0, d.total_hours || ''
   ]));
   const csv = rows.map(r => r.join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
