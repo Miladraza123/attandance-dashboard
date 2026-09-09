@@ -1250,7 +1250,9 @@ document.getElementById('btnSaveRules').addEventListener('click', async () => {
 // ---- Field Duty ----
 async function loadFieldDuty() {
   try {
-    const rows = await sbGet(`field_checkins?select=*,employees!inner(full_name,office_id)&employees.office_id=eq.${OFFICE_ID}&order=checkin_time.desc&limit=100`);
+    const rows = await sbGet(`field_checkins?select=*,employees!inner(full_name,office_id)&employees.office_id=eq.${OFFICE_ID}&limit=200`);
+    // Check-in ya Check-out, jo bhi mojood ho, usi se sort karein (nayi upar, purani neeche)
+    rows.sort((a, b) => new Date(b.checkin_time || b.checkout_time) - new Date(a.checkin_time || a.checkout_time));
     const pending = rows.filter(r => r.status === 'pending');
     const badge = document.getElementById('pendingBadge');
     if (pending.length > 0) {
