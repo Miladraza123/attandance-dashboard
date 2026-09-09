@@ -1170,7 +1170,7 @@ async function loadLog() {
   document.getElementById('btnLoadLog').innerHTML = '<i data-lucide="loader-2"></i> Loading...'; renderIcons();
   try {
     clearError();
-    let path = `daily_attendance?select=*,employees(full_name)&attendance_date=gte.${start}&attendance_date=lte.${end}&order=attendance_date.desc`;
+    let path = `daily_attendance?select=*,employees!inner(full_name,office_id)&employees.office_id=eq.${OFFICE_ID}&attendance_date=gte.${start}&attendance_date=lte.${end}&order=attendance_date.desc`;
     if (empId) path += `&employee_id=eq.${empId}`;
     logCache = await sbGet(path);
     renderLog(start, end);
