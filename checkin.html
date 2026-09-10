@@ -27,6 +27,16 @@
 </head>
 <body>
 
+<div id="inAppWarning" style="display:none; background:#fff3d6; color:#8a5a00; padding:14px 16px; font-size:13.5px; text-align:center; font-weight:600;">
+  ⚠ Aap ye page WhatsApp ke andar kholein huye hain — Location theek se kaam nahi kar sakti.
+  <div id="inAppAndroidBtn" style="display:none; margin-top:10px;">
+    <button type="button" onclick="openInChrome()" style="background:#8a5a00; color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit; font-size:14px;">Chrome mein Kholein</button>
+  </div>
+  <div id="inAppIOSMsg" style="display:none; margin-top:8px; font-size:12.5px; font-weight:500;">
+    Upar daaine taraf "⋯" ya Share icon dabayen, phir "Open in Safari/Browser" chunein.
+  </div>
+</div>
+
 <div class="card">
   <div class="title">📍 Field Duty Check-In</div>
   <div class="sub">Apna naam select karein aur punch karein — system waqt dekh kar khud check-in ya check-out samjh lega</div>
@@ -130,7 +140,9 @@ async function init() {
     const sel = document.getElementById('empSelect');
     sel.innerHTML = '<option value="">-- Select --</option>' + employees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
   } catch (e) {
-    showStatus('Load error: ' + e.message, 'error');
+    const el = document.getElementById('statusMsg');
+    el.className = 'status error';
+    el.innerHTML = 'Load error: ' + e.message + '<br><button type="button" onclick="init()" style="margin-top:8px; padding:8px 16px; border-radius:6px; border:none; background:#a13a3a; color:#fff; font-weight:700; cursor:pointer; font-family:inherit;">🔄 Dobara Try Karein</button>';
   }
 }
 
@@ -420,6 +432,23 @@ document.getElementById('actionBtn').addEventListener('click', async () => {
   }
 });
 
+function detectInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  const isAndroidWebView = /; wv\)/.test(ua) || /\bFBAN|FBAV|Instagram|Line\//.test(ua);
+  const isIOSInApp = /(iPhone|iPad|iPod)/.test(ua) && !/Safari/.test(ua);
+  if (isAndroidWebView) {
+    document.getElementById('inAppWarning').style.display = 'block';
+    document.getElementById('inAppAndroidBtn').style.display = 'block';
+  } else if (isIOSInApp) {
+    document.getElementById('inAppWarning').style.display = 'block';
+    document.getElementById('inAppIOSMsg').style.display = 'block';
+  }
+}
+function openInChrome() {
+  const url = window.location.href.replace(/^https?:\/\//, '');
+  window.location.href = `intent://${url}#Intent;scheme=https;package=com.android.chrome;end`;
+}
+detectInAppBrowser();
 init();
 </script>
 
