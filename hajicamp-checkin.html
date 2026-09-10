@@ -133,26 +133,74 @@ function currentMode() {
 document.getElementById('takePhotoBtn').addEventListener('click', () => {
   document.getElementById('photoInput').click();
 });
-document.getElementById('photoInput').addEventListener('change', (e) => {
+function compressImage(file, maxDimension = 1000, quality = 0.6) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => { img.src = e.target.result; };
+    reader.onerror = () => reject(new Error('Photo read nahi ho saki'));
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxDimension) {
+        height = Math.round(height * (maxDimension / width));
+        width = maxDimension;
+      } else if (height > maxDimension) {
+        width = Math.round(width * (maxDimension / height));
+        height = maxDimension;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error('Photo compress nahi ho saki')); return; }
+        resolve(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => reject(new Error('Photo load nahi ho saki'));
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('photoInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  capturedPhotoFile = file;
   const preview = document.getElementById('photoPreview');
-  preview.src = URL.createObjectURL(file);
-  preview.style.display = 'block';
-  document.getElementById('takePhotoBtn').textContent = '📷 Dobara Photo Khinchein';
+  const btn = document.getElementById('takePhotoBtn');
+  btn.textContent = '⏳ Photo taiyar ho rahi hai...';
+  try {
+    capturedPhotoFile = await compressImage(file);
+    preview.src = URL.createObjectURL(capturedPhotoFile);
+    preview.style.display = 'block';
+    btn.textContent = '📷 Dobara Photo Khinchein';
+  } catch (err) {
+    // Compress fail ho to bhi asal photo use kar lein (behtar hai kuch na hone se)
+    capturedPhotoFile = file;
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    btn.textContent = '📷 Dobara Photo Khinchein';
+  }
 });
 
 async function uploadPhoto(file, empId) {
   const ext = (file.type && file.type.split('/')[1]) || 'jpg';
   const filename = `${empId}_${Date.now()}.${ext}`;
-  const res = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/field-duty-photos/${filename}`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': file.type || 'image/jpeg' },
-    body: file,
-  }, 20000);
-  if (!res.ok) throw new Error('Photo upload fail ho gaya: ' + (await res.text()));
-  return `${SUPABASE_URL}/storage/v1/object/public/field-duty-photos/${filename}`;
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/field-duty-photos/${filename}`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': file.type || 'image/jpeg' },
+        body: file,
+      }, 25000);
+      if (!res.ok) throw new Error('Photo upload fail ho gaya: ' + (await res.text()));
+      return `${SUPABASE_URL}/storage/v1/object/public/field-duty-photos/${filename}`;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 1) await new Promise(r => setTimeout(r, 1500)); // thodi der ruk kar dobara try karein
+    }
+  }
+  throw lastErr;
 }
 
 async function init() {
