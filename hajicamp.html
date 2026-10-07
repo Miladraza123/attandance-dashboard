@@ -1258,10 +1258,17 @@ document.getElementById('btnSaveRules').addEventListener('click', async () => {
 // ---- Field Duty ----
 async function loadFieldDuty() {
   try {
-    const rows = await sbGet(`field_checkins?select=*,employees!inner(full_name,office_id)&employees.office_id=eq.${OFFICE_ID}&limit=200`);
+    // Pending: hamesha SAB load hon (koi limit nahi) — taake approval kabhi gum na ho aur count sahi rahe
+    // History (approved/rejected): sirf nayi records, newest-first
+    const base = `field_checkins?select=*,employees!inner(full_name,office_id)&employees.office_id=eq.${OFFICE_ID}`;
+    const [pending, histIn, histOut] = await Promise.all([
+      sbGet(`${base}&status=eq.pending`),
+      sbGet(`${base}&status=neq.pending&checkin_time=not.is.null&order=checkin_time.desc&limit=100`),
+      sbGet(`${base}&status=neq.pending&checkin_time=is.null&order=checkout_time.desc&limit=50`),
+    ]);
+    const rows = [...pending, ...histIn, ...histOut];
     // Check-in ya Check-out, jo bhi mojood ho, usi se sort karein (nayi upar, purani neeche)
     rows.sort((a, b) => new Date(b.checkin_time || b.checkout_time) - new Date(a.checkin_time || a.checkout_time));
-    const pending = rows.filter(r => r.status === 'pending');
     const badge = document.getElementById('pendingBadge');
     if (pending.length > 0) {
       badge.style.display = 'inline-block';
